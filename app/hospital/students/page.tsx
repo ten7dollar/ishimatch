@@ -1,16 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-// ★ 追加：スカウト送信・お気に入り学生（相対パス）
+// ★ スカウト送信・お気に入り学生（病院側） Provider
 import { useScoutsOutbox } from "../_providers/scout-outbox";
 import { useFavoriteStudents } from "../_providers/favorite-students";
 
-/** ---------------------------
- * マスタ定義（将来はDBやAPIに移行可）
- * --------------------------*/
+/** 事前レンダーをやめて CSR に（ビルド安定化） */
+export const dynamic = "force-dynamic";
+
+/* ---------------------------
+   マスタ定義（将来はDBやAPIに移行可）
+--------------------------- */
 const GRAD_YEARS = [2025, 2026, 2027, 2028, 2029];
 
 const DEPARTMENTS_GROUPED = [
@@ -48,7 +51,7 @@ const REGIONS: { name: string; prefs: string[] }[] = [
   { name: "近畿", prefs: ["滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県"] },
   { name: "中国", prefs: ["鳥取県","島根県","岡山県","広島県","山口県"] },
   { name: "四国", prefs: ["徳島県","香川県","愛媛県","高知県"] },
-  { name: "九州・沖縄", prefs: ["福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"] }
+  { name: "九州・沖縄",  prefs: ["福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県"] }
 ];
 
 const SALARY_OPTIONS = ["指定なし", "400万円以上", "500万円以上", "600万円以上", "700万円以上", "800万円以上"];
@@ -116,13 +119,22 @@ const DUMMY_STUDENTS: Student[] = [
   },
 ];
 
-export default function HospitalStudentsPage() {
+/* ---- Suspense ラッパー（ここが export default） ---- */
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-500">読み込み中...</div>}>
+      <HospitalStudentsPageInner />
+    </Suspense>
+  );
+}
+
+/* ---- 本体（以前の HospitalStudentsPage をここへ移動） ---- */
+function HospitalStudentsPageInner() {
   const searchParams = useSearchParams();
   const tag = searchParams.get("tag") as "applied" | "viewed" | "favorited" | null;
 
-  // ★ スカウト送信
+  // スカウト送信・お気に入り
   const { sendScout } = useScoutsOutbox();
-  // ★ お気に入り学生（病院側）
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
   const [selectedYears, setSelectedYears] = useState<number | "未選択">("未選択");
@@ -142,14 +154,12 @@ export default function HospitalStudentsPage() {
       if (tag && s.tag !== tag) return false;
       if (selectedYears !== "未選択" && s.grad_year !== selectedYears) return false;
 
-      // 診療科：OR 条件（どれか1つ一致でOK）
       if (selectedDepartments.size > 0) {
         const ok = Array.from(selectedDepartments).some((dep) =>
           s.preferredDepartments.includes(dep)
         );
         if (!ok) return false;
       }
-      // エリア：OR 条件
       if (selectedAreas.size > 0) {
         const ok = Array.from(selectedAreas).some((area) =>
           s.preferredAreas.includes(area)
@@ -160,8 +170,7 @@ export default function HospitalStudentsPage() {
       if (salary !== "指定なし" && s.desiredSalary !== salary) return false;
       if (duty !== "問わない" && s.duty !== duty) return false;
       if (visitWish && s.visitWish !== visitWish) return false;
-      if (travelSupport !== "問わない" && s.travelSupport !== travelSupport)
-        return false;
+      if (travelSupport !== "問わない" && s.travelSupport !== travelSupport) return false;
       return true;
     });
   }, [
@@ -216,17 +225,9 @@ export default function HospitalStudentsPage() {
     setTravelSupport("問わない");
   };
 
-  // ★ スカウト送信：送信後は小さなフィードバックを表示（alert等でOK）
-  const handleSendScout = (s: Student) => {
-    sendScout({
-      studentId: s.id,
-      studentName: s.name,
-      university: s.university,
-      gradYear: String(s.grad_year),
-    });
-    // ここは後でトーストに置き換え可
-    alert(`「${s.name}」へスカウトを送信しました`);
-  };
+  // スカウト送信（送付画面へ遷移）
+  const scoutHref = (id: string) =>
+    `/hospital/scouts/new?studentId=${encodeURIComponent(id)}`;
 
   return (
     <main className="max-w-6xl mx-auto px-8 py-6 space-y-8">
@@ -529,29 +530,31 @@ export default function HospitalStudentsPage() {
                   プロフィールを開く
                 </Link>
 
-                {/* ★ スカウト送付画面へ遷移（1つに統一） */}
+                {/* ★ スカウト（送付画面へ遷移に統一） */}
                 <Link
-                href={`/hospital/scouts/new?studentId=${encodeURIComponent(s.id)}`}
-                className="border border-primary-500 text-primary-600 rounded-md px-4 py-1 text-sm hover:bg-primary-50 transition inline-block">
+                  href={scoutHref(s.id)}
+                  className="border border-primary-500 text-primary-600 rounded-md px-4 py-1 text-sm hover:bg-primary-50 transition inline-block"
+                >
                   スカウト
-                  </Link>
-                {/* ★ お気に入り（病院側） */}
+                </Link>
+
+                {/* ★ お気に入り（病院側）：on/off で見た目変化 */}
                 <button
-                 onClick={() =>
-                  toggleFavorite({
-                    id: s.id,
-                    name: s.name,
-                    university: s.university,
-                    gradYear: String(s.grad_year),
-                  })
-                }
-                className={`border rounded-md px-4 py-1 text-sm hover:bg-gray-50 transition ${
-                  isFavorite(s.id) ? "border-primary-500 text-primary-600" : ""
-                }`}
-               title={isFavorite(s.id) ? "お気に入り解除" : "お気に入りに追加"}
-               >
-                {isFavorite(s.id) ? "お気に入り解除" : "お気に入り"}
-+                </button>
+                  onClick={() =>
+                    toggleFavorite({
+                      id: s.id,
+                      name: s.name,
+                      university: s.university,
+                      gradYear: String(s.grad_year),
+                    })
+                  }
+                  className={`border rounded-md px-4 py-1 text-sm hover:bg-gray-50 transition ${
+                    isFavorite(s.id) ? "border-primary-500 text-primary-600" : ""
+                  }`}
+                  title={isFavorite(s.id) ? "お気に入り解除" : "お気に入りに追加"}
+                >
+                  {isFavorite(s.id) ? "お気に入り解除" : "お気に入り"}
+                </button>
               </div>
             </div>
           ))}
@@ -565,12 +568,4 @@ export default function HospitalStudentsPage() {
       </div>
     </main>
   );
-}
-
-/** 地方の全都道府県を全て含んでいるかチェック（未使用なら削除可） */
-function selectedItemsHasAll(set: Set<string>, items: string[]) {
-  for (const it of items) {
-    if (!set.has(it)) return false;
-  }
-  return true;
 }

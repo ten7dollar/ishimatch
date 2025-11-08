@@ -2,28 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== グローバル統一設定 ===== */
-body { @apply bg-background text-text font-sans; }
+/* ===== ベース ===== */
+:root { --safe-bottom: env(safe-area-inset-bottom, 0px); }
 
-h1 { @apply text-2xl font-bold text-text mb-4; }
-h2 { @apply text-xl font-semibold text-text mb-2; }
-
-/* カード共通 */
-.card { @apply bg-background-card shadow-card rounded-xl p-6; }
-
-/* ボタン共通 */
-.btn-primary { @apply bg-primary text-white font-medium rounded-md px-4 py-2 hover:bg-primary-dark transition; }
-.btn-outline  { @apply border border-primary text-primary font-medium rounded-md px-4 py-2 hover:bg-primary hover:text-white transition; }
-
-/* 共通ボタンの縦中央揃え（上寄り対策） */
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;              /* テキスト上下余白のブレを防ぐ */
+body {
+  @apply bg-background text-text font-sans;
 }
 
-/* プライマリボタンの高さを統一したい場合（任意） */
+/* iOS でのタップハイライトを消して操作感向上 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 見出し（既存） */
+h1 { @apply text-2xl font-bold text-text mb-4; }
+h2 { @apply text-xl  font-semibold text-text mb-2; }
+
+/* ===== カード共通 ===== */
+.card { @apply bg-background-card shadow-card rounded-xl p-6; }
+
+/* ===== ボタン共通 =====
+   - inline-flex + center で縦横中央
+   - 44px 以上でモバイルのタップしやすさ確保 */
+.btn {
+  @apply inline-flex items-center justify-center select-none whitespace-nowrap
+         transition-colors duration-150 ease-out;
+  line-height: 1;           /* テキストの上下ブレを防ぐ */
+  min-height: 44px;         /* スマホでも押しやすい高さ */
+}
+
+/* プライマリ（色は primary-500 系に統一） */
 .btn-primary {
-  min-height: 44px;            /* モバイルも押しやすく */
+  @apply bg-primary-500 text-white font-medium rounded-md px-4 py-2
+         hover:bg-primary-600 active:bg-primary-700
+         focus:outline-none focus:ring focus:ring-primary-200;
+}
+
+/* アウトライン（境界＋軽いホバー） */
+.btn-outline {
+  @apply border border-primary-500 text-primary-600 font-medium rounded-md px-4 py-2
+         hover:bg-primary-50 active:bg-primary-100
+         focus:outline-none focus:ring focus:ring-primary-100;
+}
+
+/* 非活性時の見た目（任意） */
+.btn:disabled,
+button[disabled] {
+  @apply opacity-60 cursor-not-allowed;
+}
+
+/* ===== safe-area（iOS下部ホームバーの避け）モバイルのみ ===== */
+@media (max-width: 768px) {
+  body { padding-bottom: var(--safe-bottom); }
 }

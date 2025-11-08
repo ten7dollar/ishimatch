@@ -2,36 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-/* === 全体トーン === */
-body {
-  @apply bg-background text-text font-sans;
-}
+/* ===== グローバル統一設定 ===== */
+body { @apply bg-background text-text font-sans; }
 
-/* === カード共通 === */
-.card {
-  @apply bg-background-card shadow-card rounded-xl p-6;
-}
-
-/* === ボタン共通 === */
-.btn-primary {
-  @apply bg-primary-500 text-white font-medium rounded-md px-4 py-2 
-         hover:bg-primary-600 active:bg-primary-700 transition;
-}
-
-.btn-outline {
-  @apply border border-primary-500 text-primary-600 font-medium rounded-md px-4 py-2 
-         hover:bg-primary-500 hover:text-white transition;
-}
-
-/* === 見出し === */
 h1 { @apply text-2xl font-bold text-text mb-4; }
 h2 { @apply text-xl font-semibold text-text mb-2; }
-:root { --safe-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* 最低タップサイズ（親指で押しやすく） */
-button, a, input[type="submit"] { min-height: 44px; }
+/* カード共通 */
+.card { @apply bg-background-card shadow-card rounded-xl p-6; }
 
-/* safe-area をモバイルだけ適用 */
-@media (max-width: 768px) {
-  body { padding-bottom: var(--safe-bottom); }
+/* ボタン共通 */
+.btn-primary { @apply bg-primary text-white font-medium rounded-md px-4 py-2 hover:bg-primary-dark transition; }
+.btn-outline  { @apply border border-primary text-primary font-medium rounded-md px-4 py-2 hover:bg-primary hover:text-white transition; }
+
+/* 共通ボタンの縦中央揃え（上寄り対策） */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;              /* テキスト上下余白のブレを防ぐ */
+}
+
+/* プライマリボタンの高さを統一したい場合（任意） */
+.btn-primary {
+  min-height: 44px;            /* モバイルも押しやすく */
 }

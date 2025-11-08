@@ -28,7 +28,7 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
           {/* サイドバー（PC） */}
           <aside className="hidden md:flex flex-col w-64 border-r bg-white">
             <div className="px-6 py-4 border-b">
-              <h1 className="font-bold text-lg text-primary-700">医志マッチ 病院</h1>
+              <h1 className="font-bold text-lg text-primary-700">医志MATCH client</h1>
             </div>
             <nav className="flex-1 p-2 space-y-1">
               {navItems.map((item) => {
@@ -52,7 +52,9 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
           <div className="flex-1 flex flex-col">
             {/* ヘッダー */}
             <header className="w-full bg-white border-b flex justify-between items-center px-8 py-3">
-              <h2 className="text-lg font-semibold text-primary-700">東京中央病院</h2>
+              <Link href="/hospital/dashboard" className="text-lg font-semibold text-primary-700 hover:underline">
+              東京中央病院
+              </Link>
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>

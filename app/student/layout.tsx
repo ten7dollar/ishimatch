@@ -39,7 +39,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           {/* サイドバー（PC） */}
           <aside className="hidden md:flex flex-col w-64 border-r bg-white">
             <div className="px-6 py-4 border-b">
-              <h1 className="font-bold text-lg text-primary-700">医志マッチ 学生</h1>
+              <h1 className="font-bold text-lg text-primary-700">医志MATCH student</h1>
             </div>
             <nav className="flex-1 p-2 space-y-1">
               {navItems.map((item) => {
@@ -64,7 +64,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
             {/* ヘッダー */}
             <header className="w-full bg-white border-b flex items-center justify-between px-4 md:px-8 py-3">
               <div className="flex items-center gap-2">
-                <span className="text-lg font-semibold text-primary-700">医学 太郎</span>
+                <Link href="/student/dashboard" className="text-lg font-semibold text-primary-700 hover:underline">
+                医学 太郎
+                </Link>
               </div>
               <div className="flex items-center gap-4">
                 <BellWithBadge />

@@ -9,15 +9,14 @@ import { Bell, UserRound } from "lucide-react";
 import { FavoriteHospitalsProvider } from "./_providers/favorite-hospitals";
 import { ScoutsProvider, useScouts } from "./_providers/scouts";
 
-// ★ サイドバー：診断で探す（/student/find）は削除
-//    条件で探す（/student/browse）は「病院を探す」に名称変更
+// サイドバー：診断で探す（/student/find）は非表示、条件で探すは「病院を探す」
 const navItems = [
   { href: "/student/dashboard", label: "ホーム" },
-  { href: "/student/browse", label: "病院を探す" }, // ← rename
+  { href: "/student/browse", label: "病院を探す" },
   { href: "/student/saved", label: "検討リスト" },
   { href: "/student/resume", label: "レジュメを作る" },
   { href: "/student/applications", label: "応募履歴" },
-  { href: "/student/scouts", label: "スカウト" }, // メッセージの代替
+  { href: "/student/scouts", label: "スカウト" },
   { href: "/student/contact", label: "お問い合わせ" },
   { href: "/student/account", label: "アカウント" },
 ];
@@ -48,7 +47,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
           {/* サイドバー */}
           <aside className="hidden md:flex flex-col w-64 border-r bg-white">
             <div className="px-6 py-4 border-b">
-              <h1 className="font-bold text-lg text-primary-700">医志マッチ 学生</h1>
+              <h1 className="font-bold text-lg text-primary-700">医志マッチ student</h1>
             </div>
             <nav className="flex-1 p-2 space-y-1">
               {navItems.map((item) => {
@@ -85,10 +84,21 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 >
                   <UserRound className="w-5 h-5 text-primary-600" />
                 </Link>
+                {/* ログアウト */}
+                <button
+                  onClick={async () => {
+                    await fetch("/api/session", { method: "DELETE" });
+                    location.href = "/"; // トップへ（middlewareで /login に誘導）
+                  }}
+                  className="text-sm text-gray-600 hover:underline"
+                  title="ログアウト"
+                >
+                  ログアウト
+                </button>
               </div>
             </header>
 
-            {/* ページコンテンツ（共通余白を付与） */}
+            {/* ページコンテンツ */}
             <main className="flex-1 px-4 md:px-8 py-6">{children}</main>
           </div>
         </div>

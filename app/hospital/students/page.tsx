@@ -4,12 +4,13 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-// ★ スカウト送信・お気に入り学生（病院側） Provider
+// ★ 病院側 Provider（相対パス）
 import { useScoutsOutbox } from "../_providers/scout-outbox";
 import { useFavoriteStudents } from "../_providers/favorite-students";
 
-/** 事前レンダーをやめて CSR に（ビルド安定化） */
+/** 事前レンダーをやめて CSR に（Next.js 16 での useSearchParams 対策） */
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 /* ---------------------------
    マスタ定義（将来はDBやAPIに移行可）
@@ -59,6 +60,9 @@ const DUTY_OPTIONS = ["問わない", "可能", "相談", "不可"] as const;
 const OBSERVE_OPTIONS = ["すぐ可能", "長期休みのみ", "未定"] as const;
 const TRAVEL_SUPPORT_OPTIONS = ["問わない", "あり", "なし"] as const;
 
+/* ---------------------------
+   型
+--------------------------- */
 type Student = {
   id: string;
   name: string;
@@ -74,6 +78,9 @@ type Student = {
   tag?: "applied" | "viewed" | "favorited";
 };
 
+/* ---------------------------
+   ダミーデータ（将来 Supabase に置換）
+--------------------------- */
 const DUMMY_STUDENTS: Student[] = [
   {
     id: "s1",
@@ -119,7 +126,9 @@ const DUMMY_STUDENTS: Student[] = [
   },
 ];
 
-/* ---- Suspense ラッパー（ここが export default） ---- */
+/* ============================================================
+   default export：Suspense ラッパー
+============================================================ */
 export default function Page() {
   return (
     <Suspense fallback={<div className="p-6 text-sm text-gray-500">読み込み中...</div>}>
@@ -128,13 +137,16 @@ export default function Page() {
   );
 }
 
-/* ---- 本体（以前の HospitalStudentsPage をここへ移動） ---- */
+/* ============================================================
+   本体（既存の HospitalStudentsPage をそのまま移動）
+============================================================ */
 function HospitalStudentsPageInner() {
   const searchParams = useSearchParams();
   const tag = searchParams.get("tag") as "applied" | "viewed" | "favorited" | null;
 
-  // スカウト送信・お気に入り
-  const { sendScout } = useScoutsOutbox();
+  // スカウト送信（画面遷移）
+  const { sendScout } = useScoutsOutbox(); // 送付画面に統一したなら未使用でもOK
+  // お気に入り（病院側）
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
   const [selectedYears, setSelectedYears] = useState<number | "未選択">("未選択");
@@ -154,12 +166,14 @@ function HospitalStudentsPageInner() {
       if (tag && s.tag !== tag) return false;
       if (selectedYears !== "未選択" && s.grad_year !== selectedYears) return false;
 
+      // 診療科：OR一致
       if (selectedDepartments.size > 0) {
         const ok = Array.from(selectedDepartments).some((dep) =>
           s.preferredDepartments.includes(dep)
         );
         if (!ok) return false;
       }
+      // エリア：OR一致
       if (selectedAreas.size > 0) {
         const ok = Array.from(selectedAreas).some((area) =>
           s.preferredAreas.includes(area)
@@ -184,6 +198,7 @@ function HospitalStudentsPageInner() {
     tag,
   ]);
 
+  // Set操作ユーティリティ
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
     if (next.has(value)) next.delete(value);
@@ -225,7 +240,7 @@ function HospitalStudentsPageInner() {
     setTravelSupport("問わない");
   };
 
-  // スカウト送信（送付画面へ遷移）
+  // スカウト（送付画面へ遷移）
   const scoutHref = (id: string) =>
     `/hospital/scouts/new?studentId=${encodeURIComponent(id)}`;
 
@@ -538,7 +553,7 @@ function HospitalStudentsPageInner() {
                   スカウト
                 </Link>
 
-                {/* ★ お気に入り（病院側）：on/off で見た目変化 */}
+                {/* ★ お気に入り（病院側）：on/off 即反映 */}
                 <button
                   onClick={() =>
                     toggleFavorite({
@@ -568,4 +583,9 @@ function HospitalStudentsPageInner() {
       </div>
     </main>
   );
+}
+
+/* ---- ヘルパー ---- */
+function scoutHref(id: string) {
+  return `/hospital/scouts/new?studentId=${encodeURIComponent(id)}`;
 }

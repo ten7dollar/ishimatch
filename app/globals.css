@@ -26,3 +26,12 @@ body {
 /* === 見出し === */
 h1 { @apply text-2xl font-bold text-text mb-4; }
 h2 { @apply text-xl font-semibold text-text mb-2; }
+:root { --safe-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* 最低タップサイズ（親指で押しやすく） */
+button, a, input[type="submit"] { min-height: 44px; }
+
+/* safe-area をモバイルだけ適用 */
+@media (max-width: 768px) {
+  body { padding-bottom: var(--safe-bottom); }
+}

@@ -1,14 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-// ★ 病院側 Provider（相対パス）
+// 病院側 Provider（相対パス）
 import { useScoutsOutbox } from "../_providers/scout-outbox";
 import { useFavoriteStudents } from "../_providers/favorite-students";
 
-/** 事前レンダーをやめて CSR に（Next.js 16 での useSearchParams 対策） */
+/** 念のためCSR寄せ（静的化を抑止） */
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -60,9 +59,6 @@ const DUTY_OPTIONS = ["問わない", "可能", "相談", "不可"] as const;
 const OBSERVE_OPTIONS = ["すぐ可能", "長期休みのみ", "未定"] as const;
 const TRAVEL_SUPPORT_OPTIONS = ["問わない", "あり", "なし"] as const;
 
-/* ---------------------------
-   型
---------------------------- */
 type Student = {
   id: string;
   name: string;
@@ -78,9 +74,6 @@ type Student = {
   tag?: "applied" | "viewed" | "favorited";
 };
 
-/* ---------------------------
-   ダミーデータ（将来 Supabase に置換）
---------------------------- */
 const DUMMY_STUDENTS: Student[] = [
   {
     id: "s1",
@@ -127,25 +120,20 @@ const DUMMY_STUDENTS: Student[] = [
 ];
 
 /* ============================================================
-   default export：Suspense ラッパー
+   ページ本体
 ============================================================ */
-export default function Page() {
-  return (
-    <Suspense fallback={<div className="p-6 text-sm text-gray-500">読み込み中...</div>}>
-      <HospitalStudentsPageInner />
-    </Suspense>
-  );
-}
-
-/* ============================================================
-   本体（既存の HospitalStudentsPage をそのまま移動）
-============================================================ */
-function HospitalStudentsPageInner() {
-  const searchParams = useSearchParams();
-  const tag = searchParams.get("tag") as "applied" | "viewed" | "favorited" | null;
+export default function HospitalStudentsPage() {
+  // ★ useSearchParams を使わずに URL からタグを読む
+  const [tag, setTag] = useState<"applied" | "viewed" | "favorited" | null>(null);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const t = new URLSearchParams(window.location.search).get("tag");
+    if (t === "applied" || t === "viewed" || t === "favorited") setTag(t);
+    else setTag(null);
+  }, []);
 
   // スカウト送信（画面遷移）
-  const { sendScout } = useScoutsOutbox(); // 送付画面に統一したなら未使用でもOK
+  const { sendScout } = useScoutsOutbox(); // 未使用でもOK
   // お気に入り（病院側）
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
@@ -156,10 +144,6 @@ function HospitalStudentsPageInner() {
   const [duty, setDuty] = useState<typeof DUTY_OPTIONS[number]>("問わない");
   const [visitWish, setVisitWish] = useState<typeof OBSERVE_OPTIONS[number]>("すぐ可能");
   const [travelSupport, setTravelSupport] = useState<typeof TRAVEL_SUPPORT_OPTIONS[number]>("問わない");
-
-  useEffect(() => {
-    console.log("現在のタグフィルタ:", tag);
-  }, [tag]);
 
   const filtered = useMemo(() => {
     return DUMMY_STUDENTS.filter((s) => {
@@ -188,6 +172,7 @@ function HospitalStudentsPageInner() {
       return true;
     });
   }, [
+    tag,
     selectedYears,
     selectedDepartments,
     selectedAreas,
@@ -195,10 +180,9 @@ function HospitalStudentsPageInner() {
     duty,
     visitWish,
     travelSupport,
-    tag,
   ]);
 
-  // Set操作ユーティリティ
+  // Setユーティリティ
   const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set);
     if (next.has(value)) next.delete(value);
@@ -240,7 +224,6 @@ function HospitalStudentsPageInner() {
     setTravelSupport("問わない");
   };
 
-  // スカウト（送付画面へ遷移）
   const scoutHref = (id: string) =>
     `/hospital/scouts/new?studentId=${encodeURIComponent(id)}`;
 
@@ -545,7 +528,7 @@ function HospitalStudentsPageInner() {
                   プロフィールを開く
                 </Link>
 
-                {/* ★ スカウト（送付画面へ遷移に統一） */}
+                {/* スカウト（送付画面へ遷移） */}
                 <Link
                   href={scoutHref(s.id)}
                   className="border border-primary-500 text-primary-600 rounded-md px-4 py-1 text-sm hover:bg-primary-50 transition inline-block"
@@ -553,7 +536,7 @@ function HospitalStudentsPageInner() {
                   スカウト
                 </Link>
 
-                {/* ★ お気に入り（病院側）：on/off 即反映 */}
+                {/* お気に入り（病院側） */}
                 <button
                   onClick={() =>
                     toggleFavorite({

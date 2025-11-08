@@ -2,9 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
-// 病院側 Provider（相対パス）
-import { useScoutsOutbox } from "../_providers/scout-outbox";
 import { useFavoriteStudents } from "../_providers/favorite-students";
 
 /* ---------------------------
@@ -122,29 +119,38 @@ const DUMMY_STUDENTS: Student[] = [
 ];
 
 /* ============================================================
-   ページ本体
+   ページ本体（Client Page / 再検証系のexportは一切なし）
 ============================================================ */
 export default function HospitalStudentsPage() {
-  // ★ useSearchParams は使わずに URL から tag を読む
-  const [tag, setTag] = useState<"applied" | "viewed" | "favorited" | null>(null);
+  // ← useSearchParams は使わず、window.location.search から tag を読む
+  const [tag, setTag] =
+    useState<"applied" | "viewed" | "favorited" | null>(null);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const t = new URLSearchParams(window.location.search).get("tag");
     if (t === "applied" || t === "viewed" || t === "favorited") setTag(t);
   }, []);
 
-  // Provider
-  const { sendScout } = useScoutsOutbox();
+  // お気に入り（病院側）
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
-  const [selectedYears, setSelectedYears] = useState<number | "未選択">("未選択");
-  const [selectedDepartments, setSelectedDepartments] = useState<Set<string>>(new Set());
+  // フィルタ状態
+  const [selectedYears, setSelectedYears] =
+    useState<number | "未選択">("未選択");
+  const [selectedDepartments, setSelectedDepartments] = useState<Set<string>>(
+    new Set()
+  );
   const [selectedAreas, setSelectedAreas] = useState<Set<string>>(new Set());
   const [salary, setSalary] = useState<string>("指定なし");
-  const [duty, setDuty] = useState<typeof DUTY_OPTIONS[number]>("問わない");
-  const [visitWish, setVisitWish] = useState<typeof OBSERVE_OPTIONS[number]>("すぐ可能");
-  const [travelSupport, setTravelSupport] = useState<typeof TRAVEL_SUPPORT_OPTIONS[number]>("問わない");
+  const [duty, setDuty] =
+    useState<typeof DUTY_OPTIONS[number]>("問わない");
+  const [visitWish, setVisitWish] =
+    useState<typeof OBSERVE_OPTIONS[number]>("すぐ可能");
+  const [travelSupport, setTravelSupport] =
+    useState<typeof TRAVEL_SUPPORT_OPTIONS[number]>("問わない");
 
+  // 絞り込み
   const filtered = useMemo(() => {
     return DUMMY_STUDENTS.filter((s) => {
       if (tag && s.tag !== tag) return false;
@@ -168,7 +174,8 @@ export default function HospitalStudentsPage() {
       if (salary !== "指定なし" && s.desiredSalary !== salary) return false;
       if (duty !== "問わない" && s.duty !== duty) return false;
       if (visitWish && s.visitWish !== visitWish) return false;
-      if (travelSupport !== "問わない" && s.travelSupport !== travelSupport) return false;
+      if (travelSupport !== "問わない" && s.travelSupport !== travelSupport)
+        return false;
       return true;
     });
   }, [
@@ -183,17 +190,16 @@ export default function HospitalStudentsPage() {
   ]);
 
   // Setユーティリティ
-  const toggleSet = <T,>(set: Set<T>, value: T): Set<T> => {
+  const toggleSet = <T,>(set: Set<T>, v: T): Set<T> => {
     const next = new Set(set);
-    if (next.has(value)) next.delete(value);
-    else next.add(value);
+    if (next.has(v)) next.delete(v);
+    else next.add(v);
     return next;
   };
-
   const toggleDepartment = (dep: string) =>
-    setSelectedDepartments((prev) => toggleSet(prev, dep));
+    setSelectedDepartments((p) => toggleSet(p, dep));
   const toggleArea = (pref: string) =>
-    setSelectedAreas((prev) => toggleSet(prev, pref));
+    setSelectedAreas((p) => toggleSet(p, pref));
 
   const selectRegionAll = (regionName: string) => {
     const region = REGIONS.find((r) => r.name === regionName);
@@ -298,7 +304,7 @@ export default function HospitalStudentsPage() {
                 return (
                   <div key={group.group} className="border rounded-md p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium text-sm">{group.group}</span>
+                      <span className="font-medium text.sm">{group.group}</span>
                       <div className="flex gap-2">
                         <button
                           type="button"
@@ -353,7 +359,7 @@ export default function HospitalStudentsPage() {
               {REGIONS.map((region) => (
                 <div key={region.name} className="border rounded-md p-3">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium text-sm">{region.name}</span>
+                    <span className="text-sm font-medium">{region.name}</span>
                     <div className="flex gap-2">
                       <button
                         type="button"
@@ -456,7 +462,7 @@ export default function HospitalStudentsPage() {
             <summary className="cursor-pointer text-sm font-medium text-text mb-2 select-none">
               交通費補助希望
             </summary>
-            <div className="space-y-2 text.sm">
+            <div className="space-y-2 text-sm">
               {TRAVEL_SUPPORT_OPTIONS.map((opt) => (
                 <label key={opt} className="flex items-center gap-2">
                   <input

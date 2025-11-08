@@ -7,10 +7,6 @@ import Link from "next/link";
 import { useScoutsOutbox } from "../_providers/scout-outbox";
 import { useFavoriteStudents } from "../_providers/favorite-students";
 
-/** 念のためCSR寄せ（静的化を抑止） */
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
-
 /* ---------------------------
    マスタ定義（将来はDBやAPIに移行可）
 --------------------------- */
@@ -59,6 +55,9 @@ const DUTY_OPTIONS = ["問わない", "可能", "相談", "不可"] as const;
 const OBSERVE_OPTIONS = ["すぐ可能", "長期休みのみ", "未定"] as const;
 const TRAVEL_SUPPORT_OPTIONS = ["問わない", "あり", "なし"] as const;
 
+/* ---------------------------
+   型
+--------------------------- */
 type Student = {
   id: string;
   name: string;
@@ -74,6 +73,9 @@ type Student = {
   tag?: "applied" | "viewed" | "favorited";
 };
 
+/* ---------------------------
+   ダミーデータ（将来 Supabase に置換）
+--------------------------- */
 const DUMMY_STUDENTS: Student[] = [
   {
     id: "s1",
@@ -123,18 +125,16 @@ const DUMMY_STUDENTS: Student[] = [
    ページ本体
 ============================================================ */
 export default function HospitalStudentsPage() {
-  // ★ useSearchParams を使わずに URL からタグを読む
+  // ★ useSearchParams は使わずに URL から tag を読む
   const [tag, setTag] = useState<"applied" | "viewed" | "favorited" | null>(null);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const t = new URLSearchParams(window.location.search).get("tag");
     if (t === "applied" || t === "viewed" || t === "favorited") setTag(t);
-    else setTag(null);
   }, []);
 
-  // スカウト送信（画面遷移）
-  const { sendScout } = useScoutsOutbox(); // 未使用でもOK
-  // お気に入り（病院側）
+  // Provider
+  const { sendScout } = useScoutsOutbox();
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
   const [selectedYears, setSelectedYears] = useState<number | "未選択">("未選択");
@@ -456,7 +456,7 @@ export default function HospitalStudentsPage() {
             <summary className="cursor-pointer text-sm font-medium text-text mb-2 select-none">
               交通費補助希望
             </summary>
-            <div className="space-y-2 text-sm">
+            <div className="space-y-2 text.sm">
               {TRAVEL_SUPPORT_OPTIONS.map((opt) => (
                 <label key={opt} className="flex items-center gap-2">
                   <input

@@ -1,9 +1,12 @@
 "use client";
 
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useScoutsOutbox } from "../../_providers/scout-outbox";
+
+// ★ このページはサーバーでの事前レンダリングをやめてCSRにする（ビルド安定化）
+export const dynamic = "force-dynamic";
 
 const MAX = 400;
 
@@ -20,9 +23,21 @@ type StudentDetail = {
   pr: string;
 };
 
-export default function ScoutSendPage() {
+// ---- ラッパー（Suspenseで包む） ----
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="p-6 text-sm text-gray-500">読み込み中...</div>}>
+      <ScoutSendForm />
+    </Suspense>
+  );
+}
+
+// ---- フォーム本体（useSearchParamsはこの中だけで使用） ----
+function ScoutSendForm() {
   const router = useRouter();
   const sp = useSearchParams();
+  const { sendScout } = useScoutsOutbox();
+
   const studentId = sp.get("studentId") || "";
 
   // 送信先学生（本番はAPIで studentId から取得）
@@ -34,11 +49,8 @@ export default function ScoutSendPage() {
   const [message, setMessage] = useState("");
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState(false);
-  const { sendScout } = useScoutsOutbox();
 
-  useEffect(() => {
-    setCount(message.length);
-  }, [message]);
+  useEffect(() => setCount(message.length), [message]);
 
   const disabled = !student || count === 0 || count > MAX || busy;
 
@@ -64,14 +76,11 @@ export default function ScoutSendPage() {
     return (
       <main className="max-w-4xl mx-auto p-6 space-y-6">
         <h1 className="text-2xl font-bold">スカウト送信</h1>
-        <p className="text-gray-600">学生にスカウトメッセージを送信します</p>
-        <div className="rounded-xl border bg-white p-6">
-          <p className="text-sm text-gray-600">studentId が指定されていないため、送信先が見つかりませんでした。</p>
-          <div className="mt-3">
-            <Link href="/hospital/students" className="text-primary-600 underline">
-              学生検索へ戻る
-            </Link>
-          </div>
+        <p className="text-gray-600">studentId が指定されていないため、送信先が見つかりませんでした。</p>
+        <div>
+          <Link href="/hospital/students" className="text-primary-600 underline">
+            学生検索へ戻る
+          </Link>
         </div>
       </main>
     );
@@ -93,7 +102,7 @@ export default function ScoutSendPage() {
 
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary-500 text-white flex items-center justify-center font-bold">
+              <div className="w-12 h-12 rounded-full bg-primary-600 text-white flex items-center justify-center font-bold">
                 {student.name.slice(0, 2)}
               </div>
               <div>
@@ -136,7 +145,7 @@ export default function ScoutSendPage() {
           <p className="text-sm text-gray-600">学生に送信するメッセージを入力してください</p>
 
           <div>
-            <label className="text-sm text-gray-600">メッセージ本文*</label>
+            <label className="text-sm text-gray-600">メッセージ本文（最大 {MAX} 文字）</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
@@ -159,16 +168,13 @@ export default function ScoutSendPage() {
           </div>
 
           <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => router.back()}
-              className="px-4 py-2 rounded border text-sm"
-            >
+            <button onClick={() => router.back()} className="px-4 py-2 rounded border text-sm">
               キャンセル
             </button>
             <button
               onClick={handleSend}
               disabled={disabled}
-              className={`px-4 py-2 rounded text-sm ${disabled ? "bg-gray-300 text-white" : "bg-blue-600 text-white hover:bg-blue-700"}`}
+              className={`px-4 py-2 rounded text-sm ${disabled ? "bg-gray-300 text-white" : "bg-primary-600 text-white hover:bg-primary-700"}`}
             >
               スカウトを送信
             </button>

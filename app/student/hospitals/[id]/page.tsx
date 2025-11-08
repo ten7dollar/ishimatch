@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link"; // ★ 追加
 import { Heart } from "lucide-react";
 import { useFavoriteHospitals, type Hospital } from "../../_providers/favorite-hospitals";
 
@@ -33,13 +34,21 @@ export default function StudentHospitalDetail() {
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
       {/* Hero */}
       <section className="rounded-xl overflow-hidden border">
-        <Image src={hospital.hero} alt={hospital.name} width={1200} height={400} className="object-cover w-full h-64" />
+        <Image
+          src={hospital.hero}
+          alt={hospital.name}
+          width={1200}
+          height={400}
+          className="object-cover w-full h-64"
+        />
         <div className="flex items-center justify-between px-6 py-4 bg-white border-t">
           <div className="flex items-center gap-4">
             <Image src={hospital.logo} alt="logo" width={60} height={60} className="rounded-md border" />
             <div>
               <h1 className="text-xl font-semibold text-primary-700">{hospital.name}</h1>
-              <p className="text-sm text-text-muted">{hospital.meta.prefecture}・{hospital.meta.area}</p>
+              <p className="text-sm text-text-muted">
+                {hospital.meta.prefecture}・{hospital.meta.area}
+              </p>
             </div>
           </div>
 
@@ -49,7 +58,11 @@ export default function StudentHospitalDetail() {
             className="flex items-center gap-2 px-3 py-2 border rounded"
             aria-label={active ? "お気に入り解除" : "お気に入り追加"}
           >
-            <Heart className="w-5 h-5" fill={active ? "#ef4444" : "transparent"} color={active ? "#ef4444" : "#bbb"} />
+            <Heart
+              className="w-5 h-5"
+              fill={active ? "#ef4444" : "transparent"}
+              color={active ? "#ef4444" : "#bbb"}
+            />
             <span>{active ? "お気に入り解除" : "お気に入りに追加"}</span>
           </button>
         </div>
@@ -59,10 +72,22 @@ export default function StudentHospitalDetail() {
       <section className="card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-primary-700">病院概要</h2>
         <div className="grid md:grid-cols-2 gap-2 text-sm">
-          <p><span className="text-text-muted">所在地：</span>{hospital.overview.address}</p>
-          <p><span className="text-text-muted">指導医数：</span>{hospital.overview.doctors}名</p>
-          <p><span className="text-text-muted">救急区分：</span>{hospital.meta.emergency}</p>
-          <p><span className="text-text-muted">初期研修医：</span>{hospital.overview.interns}</p>
+          <p>
+            <span className="text-text-muted">所在地：</span>
+            {hospital.overview.address}
+          </p>
+          <p>
+            <span className="text-text-muted">指導医数：</span>
+            {hospital.overview.doctors}名
+          </p>
+          <p>
+            <span className="text-text-muted">救急区分：</span>
+            {hospital.meta.emergency}
+          </p>
+          <p>
+            <span className="text-text-muted">初期研修医：</span>
+            {hospital.overview.interns}
+          </p>
         </div>
       </section>
 
@@ -77,10 +102,22 @@ export default function StudentHospitalDetail() {
       <section className="card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-primary-700">求人情報</h2>
         <div className="grid md:grid-cols-2 gap-2 text-sm">
-          <p><span className="text-text-muted">給与（1年次）：</span>{hospital.job.salary1}</p>
-          <p><span className="text-text-muted">給与（2年次）：</span>{hospital.job.salary2}</p>
-          <p><span className="text-text-muted">当直回数：</span>{hospital.meta.duty}</p>
-          <p><span className="text-text-muted">福利厚生：</span>{hospital.job.benefits}</p>
+          <p>
+            <span className="text-text-muted">給与（1年次）：</span>
+            {hospital.job.salary1}
+          </p>
+          <p>
+            <span className="text-text-muted">給与（2年次）：</span>
+            {hospital.job.salary2}
+          </p>
+          <p>
+            <span className="text-text-muted">当直回数：</span>
+            {hospital.meta.duty}
+          </p>
+          <p>
+            <span className="text-text-muted">福利厚生：</span>
+            {hospital.job.benefits}
+          </p>
         </div>
       </section>
 
@@ -97,13 +134,22 @@ export default function StudentHospitalDetail() {
         </ul>
       </section>
 
+      {/* アクション */}
       <div className="flex gap-3 justify-end">
-        <a href="/student/saved" className="border border-primary-500 text-primary-600 rounded-md px-4 py-2 hover:bg-primary-50 transition">
+        <Link
+          href="/student/saved"
+          className="border border-primary-500 text-primary-600 rounded-md px-4 py-2 hover:bg-primary-50 transition"
+        >
           検討リストを開く
-        </a>
-        <button className="bg-primary-500 text-white rounded-md px-4 py-2 hover:bg-primary-600 transition">
+        </Link>
+
+        {/* ★ 申込画面へ遷移（病院IDをクエリで渡す） */}
+        <Link
+          href={`/student/apply?hospitalId=${encodeURIComponent(idParam)}`}
+          className="bg-primary-500 text-white rounded-md px-4 py-2 hover:bg-primary-600 transition"
+        >
           初回面談を申し込む
-        </button>
+        </Link>
       </div>
     </main>
   );
@@ -128,7 +174,9 @@ function getHospitalById(id: string) {
     overview: { address: "東京都新宿区成城1-2-3", doctors: 36, interns: "10〜20名" },
     pr: {
       title: "手技教育が充実。海外研修もサポート。",
-      body: "都心の急性期病院。手技経験が豊富で、初期研修医への教育体制が整っています。\n海外研修プログラムも用意しています。",
+      body:
+        "都心の急性期病院。手技経験が豊富で、初期研修医への教育体制が整っています。\n" +
+        "海外研修プログラムも用意しています。",
     },
     job: {
       salary1: "月給50万円（年収600万円）",

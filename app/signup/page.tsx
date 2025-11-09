@@ -10,42 +10,42 @@ export default function SignupPage() {
   const [pwd,setPwd] = useState("");
   const [busy,setBusy] = useState(false);
 
-  const onSubmit = async (e:React.FormEvent) => {
-    e.preventDefault(); setBusy(true);
+  // ...冒頭のimport/状態はそのまま
 
-    // 1) Supabase にアカウント作成（メタデータに role/name）
-    const { error } = await supabase.auth.signUp({
-      email, password: pwd, options: { data: { role, name } }
-    });
-    setBusy(false);
-    if (error) return alert("登録に失敗しました：" + error.message);
+const onSubmit = async (e:React.FormEvent) => {
+  e.preventDefault(); setBusy(true);
 
-    // 2) 自分のプロフィール行を作成（RLSで本人のみ許可）
-    const { data:{ user } } = await supabase.auth.getUser();
-    if (user) {
-      if (role === "student") {
-        await supabase.from("students").upsert({ id:user.id, email, name: name || null });
-      } else {
-        await supabase.from("hospital_accounts").upsert({
-          id:user.id, email, contact_name: name || null, hospital_name: null
-        });
-      }
+  const { error } = await supabase.auth.signUp({
+    email, password: pwd, options: { data: { role, name, full_name: name, display_name: name } }
+  });
+  setBusy(false);
+  if (error) { alert("登録に失敗しました：" + error.message); return; }
+
+  const { data:{ user } } = await supabase.auth.getUser();
+
+  // DB側の行を作成/補完（既存RLS前提）
+  if (user) {
+    if (role === "student") {
+      await supabase.from("students").upsert({ id: user.id, email, name });
     } else {
-      // メール確認ONの場合はここで user==null になるので、そのまま案内
-      alert("登録メールを送信しました。メールの確認後にログインしてください。");
-      location.href = "/login";
-      return;
+      await supabase.from("hospital_accounts").upsert({ id: user.id, email, contact_name: name });
     }
-
-    // 3) 既存ミドルウェア互換：role クッキーを付与
-    await fetch("/api/session", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ role, email })
-    });
-
-    // 4) ダッシュへ
+    // ★ role クッキー付与（middleware互換）
+    try {
+      await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ role, email }),
+      });
+    } catch {}
     location.href = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
-  };
+  } else {
+    // メール確認ON時はこちら（ユーザー未ログイン）
+    alert("登録メールを送信しました。メール確認後にログインしてください。");
+    location.href = "/login";
+  }
+};
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">

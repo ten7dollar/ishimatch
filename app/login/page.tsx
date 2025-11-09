@@ -9,35 +9,38 @@ export default function LoginPage() {
   const [pwd, setPwd] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
+  // ...冒頭のimport/状態はそのまま
 
-    // 1) Supabase 認証（登録済みのみ成功）
-    const { error } = await supabase.auth.signInWithPassword({ email, password: pwd });
-    setBusy(false);
-    if (error) {
-      alert("ログインに失敗しました：" + error.message);
-      return;
-    }
+const onSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setBusy(true);
 
-    // 2) role が無い古いユーザー救済（初回のみ）
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user && !user.user_metadata?.role) {
-      await supabase.auth.updateUser({ data: { role } });
-    }
-    const resolvedRole = (user?.user_metadata?.role as "student" | "hospital") ?? role;
+  const { error } = await supabase.auth.signInWithPassword({ email, password: pwd });
+  setBusy(false);
+  if (error) {
+    alert("ログインに失敗しました：" + error.message);
+    return;
+  }
 
-    // 3) 既存ミドルウェア互換：role クッキーを付与
+  const { data: { user } } = await supabase.auth.getUser();
+  // role 未設定ユーザーの救済（初回のみ）
+  if (user && !user.user_metadata?.role) {
+    await supabase.auth.updateUser({ data: { role } }).catch(()=>{});
+  }
+  const resolvedRole = (user?.user_metadata?.role as "student"|"hospital") ?? role;
+
+  // ★ 既存middleware互換のため role クッキーを必ず付与
+  try {
     await fetch("/api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
       body: JSON.stringify({ role: resolvedRole, email }),
     });
+  } catch {}
 
-    // 4) ダッシュへ
-    location.href = resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
-  };
+  location.href = resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+};
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">

@@ -7,7 +7,7 @@ import { Bell } from "lucide-react";
 
 import { ScoutsOutboxProvider } from "./_providers/scout-outbox";
 import { FavoriteStudentsProvider } from "./_providers/favorite-students";
-import HospitalMobileTabBar from "./MobileTabBar"; // ★ 追加
+import HospitalMobileTabBar from "./MobileTabBar";
 
 const navItems = [
   { href: "/hospital/dashboard", label: "ホーム" },
@@ -28,7 +28,7 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
           {/* サイドバー（PC） */}
           <aside className="hidden md:flex flex-col w-64 border-r bg-white">
             <div className="px-6 py-4 border-b">
-              <h1 className="font-bold text-lg text-primary-700">医志MATCH client</h1>
+              <h1 className="font-bold text-lg text-primary-700">医志マッチ 病院</h1>
             </div>
             <nav className="flex-1 p-2 space-y-1">
               {navItems.map((item) => {
@@ -37,9 +37,10 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`block px-3 py-2 rounded-md text-sm font-medium transition ${
-                      active ? "bg-primary-500 text-white" : "text-text hover:bg-primary-50 hover:text-primary-700"
-                    }`}
+                    className={`block px-3 py-2 rounded-md text-sm font-medium transition
+                    ${active
+                      ? "bg-primary-500 text-white"
+                      : "text-text hover:bg-primary-50 hover:text-primary-700"}`}
                   >
                     {item.label}
                   </Link>
@@ -52,25 +53,41 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
           <div className="flex-1 flex flex-col">
             {/* ヘッダー */}
             <header className="w-full bg-white border-b flex justify-between items-center px-8 py-3">
+              {/* 左上の病院名 → ダッシュボードへ戻る */}
               <Link href="/hospital/dashboard" className="text-lg font-semibold text-primary-700 hover:underline">
-              東京中央病院
+                東京中央病院
               </Link>
+
               <div className="flex items-center gap-6">
+                {/* ステータス */}
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-green-500"></span>
                   <span className="text-sm text-text-muted">公開中</span>
                 </div>
-                <button title="通知" className="relative p-2 rounded-full hover:bg-primary-50 transition">
+
+                {/* 通知（応募管理へ遷移） */}
+                <Link
+                  href="/hospital/applications"
+                  title="応募管理へ"
+                  className="relative p-2 rounded-full hover:bg-primary-50 transition"
+                >
                   <Bell className="w-5 h-5 text-primary-600" />
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-                </button>
-                <Link href="/hospital/account" className="text-primary-600 hover:underline text-sm font-medium">
+                </Link>
+
+                {/* アカウント */}
+                <Link
+                  href="/hospital/account"
+                  className="text-primary-600 hover:underline text-sm font-medium"
+                >
                   マイアカウント
                 </Link>
+
+                {/* ログアウト */}
                 <button
                   onClick={async () => {
                     await fetch("/api/session", { method: "DELETE" });
-                    location.href = "/"; // middleware経由で /login に誘導
+                    location.href = "/";
                   }}
                   className="text-sm text-gray-600 hover:underline"
                 >

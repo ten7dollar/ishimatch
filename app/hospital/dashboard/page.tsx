@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 // お気に入り学生の件数
 import { useFavoriteStudents } from "../_providers/favorite-students";
 // スカウト送付/応募の集計
@@ -25,21 +26,20 @@ export default function HospitalDashboard() {
       {/* ===== KPIカード群（今月の応募 / お気に入り / スカウトステータス） ===== */}
       <div className="grid md:grid-cols-3 gap-4">
         {/* 今月の応募 → 応募管理に遷移 */}
-        <a
+        <Link
           href="/hospital/applications"
           className="card flex flex-col gap-1 hover:bg-primary-50 transition"
           title="応募管理を開く"
         >
           <span className="text-sm text-text-muted">今月の応募</span>
           <div className="flex items-baseline gap-2">
-            {/* 値は必要に応じて差し替え。MVPは0でもOK */}
             <p className="text-3xl font-bold text-primary-600">12</p>
             <span className="text-sm text-primary-500">+3</span>
           </div>
-        </a>
+        </Link>
 
         {/* お気に入り学生（件数は Provider 実数）→ お気に入り学生一覧へ */}
-        <a
+        <Link
           href="/hospital/favorites"
           className="card flex flex-col gap-1 hover:bg-primary-50 transition"
           title="お気に入り学生一覧を開く"
@@ -48,10 +48,10 @@ export default function HospitalDashboard() {
           <div className="flex items-baseline gap-2">
             <p className="text-3xl font-bold text-primary-600">{favoritesCount}</p>
           </div>
-        </a>
+        </Link>
 
         {/* スカウトステータス（応募数 / 送付数）→ ステータスへ */}
-        <a
+        <Link
           href="/hospital/scouts"
           className="card flex flex-col gap-1 hover:bg-primary-50 transition"
           title="スカウトステータスへ"
@@ -66,7 +66,7 @@ export default function HospitalDashboard() {
             </span>
           </div>
           <p className="text-xs text-text-muted mt-1">応募数 / 送付数</p>
-        </a>
+        </Link>
       </div>
 
       {/* ===== クイックアクション & 二次マッチ枠 ===== */}
@@ -77,21 +77,21 @@ export default function HospitalDashboard() {
           <p className="text-text-muted text-sm">よく使う機能へ素早くアクセス</p>
 
           <div className="flex flex-col gap-3">
-            <a
+            <Link
               href="/hospital/pr"
               className="border rounded-md py-2 px-3 flex items-center justify-between hover:bg-primary-50 transition"
             >
               <span className="text-text">PRページを編集</span>
               <span className="text-primary-600 text-sm font-medium">→</span>
-            </a>
+            </Link>
 
-            <a
+            <Link
               href="/hospital/students"
               className="border rounded-md py-2 px-3 flex items-center justify-between hover:bg-primary-50 transition"
             >
               <span className="text-text">学生を探す</span>
               <span className="text-primary-600 text-sm font-medium">→</span>
-            </a>
+            </Link>
 
             <div className="flex items-center justify-between border rounded-md py-2 px-3">
               <span className="text-text">公開状態</span>
@@ -148,10 +148,10 @@ export default function HospitalDashboard() {
         </div>
       </section>
 
-      {/* ===== 最近の応募（ダミーのまま） ===== */}
+      {/* ===== 最近の応募 ===== */}
       <section className="card p-5">
         <h2 className="text-lg font-semibold text-primary-700 mb-3">最近の応募</h2>
-        <p className="text-text-muted text-sm mb-4">直近の応募者を確認し、アクションを実行</p>
+        <p className="text-text-muted text-sm mb-4">直近の応募者を確認</p>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm text-left">
@@ -161,23 +161,27 @@ export default function HospitalDashboard() {
                 <th className="py-2 px-4">大学・卒年</th>
                 <th className="py-2 px-4">応募日</th>
                 <th className="py-2 px-4">ステータス</th>
-                <th className="py-2 px-4">アクション</th>
+                {/* アクション列は削除 */}
               </tr>
             </thead>
             <tbody>
               {[
-                { name: "山田太郎", university: "東京大学医学部 2026卒", date: "11月2日", status: "送信",   color: "bg-blue-100 text-primary-700" },
-                { name: "佐藤花子", university: "京都大学医学部 2026卒", date: "11月1日", status: "閲覧済", color: "bg-green-100 text-green-700" },
-                { name: "鈴木一郎", university: "大阪大学医学部 2025卒", date: "10月30日", status: "面談打診", color: "bg-purple-100 text-purple-700" },
-              ].map((s, i) => (
-                <tr key={i} className="border-b hover:bg-primary-50 transition">
-                  <td className="py-2 px-4 font-semibold text-primary-700">{s.name}</td>
+                { id: "st-001", name: "山田太郎", university: "東京大学医学部 2026卒", date: "11月2日", status: "送信",   color: "bg-blue-100 text-primary-700" },
+                { id: "st-002", name: "佐藤花子", university: "京都大学医学部 2026卒", date: "11月1日", status: "閲覧済", color: "bg-green-100 text-green-700" },
+                { id: "st-003", name: "鈴木一郎", university: "大阪大学医学部 2025卒", date: "10月30日", status: "面談打診", color: "bg-purple-100 text-purple-700" },
+              ].map((s) => (
+                <tr key={s.id} className="border-b hover:bg-primary-50 transition">
+                  <td className="py-2 px-4 font-semibold text-primary-700">
+                    <Link href={`/hospital/students/${encodeURIComponent(s.id)}`} className="hover:underline">
+                      {s.name}
+                    </Link>
+                  </td>
                   <td className="py-2 px-4">{s.university}</td>
                   <td className="py-2 px-4">{s.date}</td>
                   <td className="py-2 px-4">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium ${s.color}`}>{s.status}</span>
                   </td>
-                  <td className="py-2 px-4 text-primary-600 font-medium cursor-pointer hover:underline">詳細</td>
+                  {/* 操作列は削除 */}
                 </tr>
               ))}
             </tbody>

@@ -39,7 +39,7 @@ function BellWithBadge() {
 }
 
 function StudentHeaderName() {
-  const { displayName } = useUserProfile();
+  const { displayName } = useUserProfile(); // DBの名前→メール先頭
   return (
     <div className="flex items-center gap-2">
       <Link
@@ -54,7 +54,6 @@ function StudentHeaderName() {
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-
   return (
     <ScoutsProvider>
       <FavoriteHospitalsProvider>
@@ -104,7 +103,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               </header>
 
               {/* コンテンツ（モバイルのみ下余白） */}
-              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">{children}</main>
+              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">
+                {children}
+              </main>
               {/* モバイルタブバー */}
               <StudentMobileTabBar />
             </div>

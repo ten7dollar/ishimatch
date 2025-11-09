@@ -21,7 +21,7 @@ const navItems = [
 ];
 
 function HospitalHeaderName() {
-  const { displayName } = useUserProfile(); // hospital_name → contact_name → メール先頭
+  const { displayName } = useUserProfile(); // 病院名→担当者名→メール先頭
   return (
     <Link
       href="/hospital/dashboard"
@@ -69,11 +69,10 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             <div className="flex-1 flex flex-col">
               {/* ヘッダー */}
               <header className="w-full bg-white border-b flex justify-between items-center px-8 py-3">
-                {/* 病院名（ダッシュへ） */}
                 <HospitalHeaderName />
 
                 <div className="flex items-center gap-6">
-                  {/* ステータス */}
+                  {/* ステータス（ダミー表示はそのまま維持） */}
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     <span className="text-sm text-text-muted">公開中</span>

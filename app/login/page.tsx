@@ -4,43 +4,59 @@ import { createSupabaseBrowser } from "../lib/supabase/client";
 
 export default function LoginPage() {
   const supabase = createSupabaseBrowser();
+
   const [role, setRole] = useState<"student" | "hospital">("student");
   const [email, setEmail] = useState("");
   const [pwd, setPwd] = useState("");
   const [busy, setBusy] = useState(false);
 
-  // ...冒頭のimport/状態はそのまま
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
 
-const onSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setBusy(true);
+    // 1) Supabase Auth でログイン
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: pwd,
+    });
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password: pwd });
-  setBusy(false);
-  if (error) {
-    alert("ログインに失敗しました：" + error.message);
-    return;
-  }
+    setBusy(false);
 
-  const { data: { user } } = await supabase.auth.getUser();
-  // role 未設定ユーザーの救済（初回のみ）
-  if (user && !user.user_metadata?.role) {
-    await supabase.auth.updateUser({ data: { role } }).catch(()=>{});
-  }
-  const resolvedRole = (user?.user_metadata?.role as "student"|"hospital") ?? role;
+    if (error) {
+      alert(`ログインに失敗しました：${error.message}`);
+      return;
+    }
 
-  // ★ 既存middleware互換のため role クッキーを必ず付与
-  try {
+    // 2) ロールが未設定のユーザーは初回ログイン時に救済
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const resolvedRole =
+      (user?.user_metadata?.role as "student" | "hospital") ?? role;
+
+    if (user && !user?.user_metadata?.role) {
+      await supabase.auth.updateUser({ data: { role: resolvedRole } }).catch(() => {});
+    }
+
+    // 3) 既存middleware互換のため、role/email を Cookie にセット
     await fetch("/api/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ role: resolvedRole, email }),
-    });
-  } catch {}
+      credentials: "include", // ★ Set-Cookie を確実に反映
+      body: JSON.stringify({
+        role: resolvedRole,
+        email,
+      }),
+    }).catch(() => {});
 
-  location.href = resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
-};
+    // Cookie が反映されるのを短く待機
+    await new Promise((r) => setTimeout(r, 50));
+
+    // 4) ロールに応じて遷移
+    location.href =
+      resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
@@ -54,12 +70,22 @@ const onSubmit = async (e: React.FormEvent) => {
 
         {/* ロール切替（UIはそのまま） */}
         <div className="flex mb-6 bg-primary-50 rounded-full p-1">
-          <button onClick={() => setRole("student")}
-            className={`flex-1 py-2 rounded-full font-medium transition ${role==="student"?"bg-primary-500 text-white shadow":"text-primary-700 hover:bg-primary-100"}`}>
+          <button
+            type="button"
+            onClick={() => setRole("student")}
+            className={`flex-1 py-2 rounded-full font-medium transition ${
+              role === "student" ? "bg-primary-500 text-white shadow" : "text-primary-700 hover:bg-primary-100"
+            }`}
+          >
             学生様はこちら
           </button>
-          <button onClick={() => setRole("hospital")}
-            className={`flex-1 py-2 rounded-full font-medium transition ${role==="hospital"?"bg-primary-500 text-white shadow":"text-primary-700 hover:bg-primary-100"}`}>
+          <button
+            type="button"
+            onClick={() => setRole("hospital")}
+            className={`flex-1 py-2 rounded-full font-medium transition ${
+              role === "hospital" ? "bg-primary-500 text-white shadow" : "text-primary-700 hover:bg-primary-100"
+            }`}
+          >
             病院様はこちら
           </button>
         </div>
@@ -73,21 +99,31 @@ const onSubmit = async (e: React.FormEvent) => {
           <div>
             <label className="block text-sm mb-1 text-text-muted">メールアドレス</label>
             <input
-              type="email" value={email} onChange={(e)=>setEmail(e.target.value)}
-              placeholder={role==="student"?"student@example.com":"hospital@example.com"}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-primary-300"
+              type="email"
+              value={email}
+              // ★ void を論理演算子に使わない。2行に分ける
+              onChange={(e) => {
+                setPwd("");
+                setEmail(e.target.value);
+              }}
+              placeholder={role === "student" ? "student@example.com" : "hospital@example.com"}
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              required
             />
           </div>
           <div>
             <label className="block text-sm mb-1 text-text-muted">パスワード</label>
             <input
-              type="password" value={pwd} onChange={(e)=>setPwd(e.target.value)}
+              type="password"
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
               placeholder="••••••••"
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-primary-300"
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              required
             />
           </div>
 
-          <button disabled={busy} className="btn btn-primary w-full">
+          <button disabled={busy} className="btn-primary w-full">
             {busy ? "ログイン中..." : "ログイン"}
           </button>
         </form>

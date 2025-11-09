@@ -1,51 +1,71 @@
 "use client";
+
 import { useState } from "react";
 import { createSupabaseBrowser } from "../lib/supabase/client";
 
 export default function SignupPage() {
   const supabase = createSupabaseBrowser();
-  const [role,setRole] = useState<"student"|"hospital">("student");
-  const [name,setName] = useState("");
-  const [email,setEmail] = useState("");
-  const [pwd,setPwd] = useState("");
-  const [busy,setBusy] = useState(false);
 
-  // ...冒頭のimport/状態はそのまま
+  const [role, setRole] = useState<"student" | "hospital">("student");
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [gradYear, setGradYear] = useState("");
+  const [pwd, setPwd] = useState("");
+  const [busy, setBusy] = useState(false);
 
-const onSubmit = async (e:React.FormEvent) => {
-  e.preventDefault(); setBusy(true);
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
 
-  const { error } = await supabase.auth.signUp({
-    email, password: pwd, options: { data: { role, name, full_name: name, display_name: name } }
-  });
-  setBusy(false);
-  if (error) { alert("登録に失敗しました：" + error.message); return; }
-
-  const { data:{ user } } = await supabase.auth.getUser();
-
-  // DB側の行を作成/補完（既存RLS前提）
-  if (user) {
-    if (role === "student") {
-      await supabase.from("students").upsert({ id: user.id, email, name });
-    } else {
-      await supabase.from("hospital_accounts").upsert({ id: user.id, email, contact_name: name });
+    // 1) Supabaseでユーザー作成
+    const { error } = await supabase.auth.signUp({ email, password: pwd });
+    if (error) {
+      setBusy(false);
+      alert(`登録に失敗しました：${error.message}`);
+      return;
     }
-    // ★ role クッキー付与（middleware互換）
+
+    // 2) user 取得
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    // 3) プロファイル保存（学生：students、病院：将来 hospital_accounts 等）
     try {
-      await fetch("/api/session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ role, email }),
-      });
+      const fullName = name?.trim() ? name : null;
+
+      if (role === "student") {
+        await supabase.from("students").upsert({
+          id: user?.id,
+          name: fullName,
+          university: null,
+          grad_year: gradYear ? Number(gradYear) : null,
+        });
+      } else {
+        // 病院側は必要に応じて作成（例）
+        // await supabase.from("hospital_accounts").upsert({ id:user?.id, contact_name: fullName });
+      }
+
+      // user_metadata に role/name を記録（未設定なら）
+      await supabase.auth.updateUser({
+        data: { role, displayName: fullName ?? undefined },
+      }).catch(() => {});
     } catch {}
+
+    // 4) 既存middleware互換：role/email を Cookie にセット
+    await fetch("/api/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include", // ★ 必須
+      body: JSON.stringify({ role, email }),
+    }).catch(() => {});
+
+    await new Promise((r) => setTimeout(r, 50)); // ★ 反映待ち
+    setBusy(false);
+
+    // 5) 遷移
     location.href = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
-  } else {
-    // メール確認ON時はこちら（ユーザー未ログイン）
-    alert("登録メールを送信しました。メール確認後にログインしてください。");
-    location.href = "/login";
-  }
-};
+  };
 
   return (
     <main className="min-h-screen flex flex-col items-center justify-center bg-background px-4">
@@ -57,55 +77,80 @@ const onSubmit = async (e:React.FormEvent) => {
           <p className="text-text-muted text-sm">志に合う病院に出会える。</p>
         </div>
 
-        {/* ロール切替（既存UIのまま） */}
+        {/* ロール切替 */}
         <div className="flex mb-6 bg-primary-50 rounded-full p-1">
-          <button onClick={()=>setRole("student")}
-            className={`flex-1 py-2 rounded-full font-medium transition ${role==="student"?"bg-primary-500 text-white shadow":"text-primary-700 hover:bg-primary-100"}`}>
+          <button
+            type="button"
+            onClick={() => setRole("student")}
+            className={`flex-1 py-2 rounded-full font-medium transition ${
+              role === "student" ? "bg-primary-500 text-white shadow" : "text-primary-700 hover:bg-primary-100"
+            }`}
+          >
             学生様はこちら
           </button>
-          <button onClick={()=>setRole("hospital")}
-            className={`flex-1 py-2 rounded-full font-medium transition ${role==="hospital"?"bg-primary-500 text-white shadow":"text-primary-700 hover:bg-primary-100"}`}>
+          <button
+            type="button"
+            onClick={() => setRole("hospital")}
+            className={`flex-1 py-2 rounded-full font-medium transition ${
+              role === "hospital" ? "bg-primary-500 text-white shadow" : "text-primary-700 hover:bg-primary-100"
+            }`}
+          >
             病院様はこちら
           </button>
         </div>
 
-        <h2 className="text-lg font-semibold mb-3 text-primary-700">{role==="student"?"学生登録":"病院登録"}</h2>
+        <h2 className="text-lg font-semibold mb-3 text-primary-700">アカウント情報</h2>
 
-        {/* 登録フォーム */}
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm mb-1 text-text-muted">氏名 / 担当者名</label>
+            <label className="block text-sm text-text-muted">氏名</label>
             <input
-              type="text" value={name} onChange={(e)=>setName(e.target.value)}
-              placeholder={role==="student"?"例：山田 太郎":"例：採用担当 佐藤"}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-primary-300"
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1 text-text-muted">メールアドレス</label>
-            <input
-              type="email" value={email} onChange={(e)=>setEmail(e.target.value)}
-              placeholder={role==="student"?"student@example.com":"hospital@example.com"}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-primary-300"
-            />
-          </div>
-          <div>
-            <label className="block text-sm mb-1 text-text-muted">パスワード</label>
-            <input
-              type="password" value={pwd} onChange={(e)=>setPwd(e.target.value)}
-              placeholder="8文字以上で入力"
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring focus:ring-primary-300"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              placeholder="山田 太郎"
+              required
             />
           </div>
 
-          <button disabled={busy} className="btn btn-primary w-full">
-            {busy ? "登録中..." : "登録してログイン"}
+          <div>
+            <label className="block text-sm text-text-muted">メールアドレス</label>
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              type="email"
+              placeholder="sample@example.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-text-muted">卒業予定年（任意）</label>
+            <input
+              value={gradYear}
+              onChange={(e) => setGradYear(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              placeholder="2026"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-text-muted">パスワード</label>
+            <input
+              value={pwd}
+              onChange={(e) => setPwd(e.target.value)}
+              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+              type="password"
+              placeholder="8文字以上"
+              required
+            />
+          </div>
+
+          <button className="btn-primary w-full" disabled={busy}>
+            {busy ? "送信中..." : "登録して進む"}
           </button>
         </form>
-
-        <div className="text-center text-sm mt-4">
-          <a href="/login" className="text-primary-600 hover:underline">ログインはこちら</a>
-        </div>
       </div>
     </main>
   );

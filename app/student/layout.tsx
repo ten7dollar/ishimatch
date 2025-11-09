@@ -8,6 +8,7 @@ import { Bell, UserRound } from "lucide-react";
 import { FavoriteHospitalsProvider } from "./_providers/favorite-hospitals";
 import { ScoutsProvider, useScouts } from "./_providers/scouts";
 import StudentMobileTabBar from "./MobileTabBar"; // ★ 追加
+import LogoutButton from "../components/LogoutButton"; // 先頭のimport群に追加
 
 const navItems = [
   { href: "/student/dashboard", label: "ホーム" },
@@ -73,15 +74,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 <Link href="/student/account" title="アカウント" className="p-2 rounded-full hover:bg-primary-50 transition">
                   <UserRound className="w-5 h-5 text-primary-600" />
                 </Link>
-                <button
-                  onClick={async () => {
-                    await fetch("/api/session", { method: "DELETE" });
-                    location.href = "/"; // middleware経由で /login に誘導
-                  }}
-                  className="text-sm text-gray-600 hover:underline"
-                >
-                  ログアウト
-                </button>
+                <LogoutButton className="text-sm text-gray-600 hover:underline" />
               </div>
             </header>
 

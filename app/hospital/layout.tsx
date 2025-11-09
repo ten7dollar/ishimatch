@@ -8,6 +8,7 @@ import { Bell } from "lucide-react";
 import { ScoutsOutboxProvider } from "./_providers/scout-outbox";
 import { FavoriteStudentsProvider } from "./_providers/favorite-students";
 import HospitalMobileTabBar from "./MobileTabBar";
+import LogoutButton from "../components/LogoutButton";
 
 const navItems = [
   { href: "/hospital/dashboard", label: "ホーム" },
@@ -84,15 +85,7 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                 </Link>
 
                 {/* ログアウト */}
-                <button
-                  onClick={async () => {
-                    await fetch("/api/session", { method: "DELETE" });
-                    location.href = "/";
-                  }}
-                  className="text-sm text-gray-600 hover:underline"
-                >
-                  ログアウト
-                </button>
+                <LogoutButton className="text-sm text-gray-600 hover:underline" />
               </div>
             </header>
 

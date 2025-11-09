@@ -3,8 +3,7 @@ import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 
 /**
  * Route Handler（/app/api/*）で使うサーバー用 Supabase クライアント。
- * cookies は next/headers の cookies() をそのまま渡します。
- * Env（NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY）は自動で参照されます。
+ * cookies は next/headers の cookies() をラップして渡します。
  */
 export const createSupabaseServer = () =>
-  createRouteHandlerClient({ cookies });
+  createRouteHandlerClient({ cookies: () => cookies() }); // ★ ここもラッパー

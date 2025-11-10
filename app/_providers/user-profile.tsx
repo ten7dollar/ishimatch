@@ -32,6 +32,7 @@ type Ctx = {
   role?: Role;
   student?: StudentProfile;
   hospital?: HospitalAccount;
+  /** ヘッダー表示用：full_name → name → DB → emailローカル部 */
   displayName: string;
   refresh: () => Promise<void>;
   update: (values: Partial<StudentProfile & HospitalAccount>) => Promise<void>;
@@ -54,6 +55,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
   const [authEmail, setAuthEmail] = useState("");
   const [authName, setAuthName] = useState("");
 
+  /** Cookie の role をバックアップとして読む（metadata が無い旧ユーザー救済） */
   const readRoleCookie = (): Role | undefined => {
     if (typeof document === "undefined") return undefined;
     const m = document.cookie.match(/(?:^|;\s*)role=([^;]+)/);
@@ -61,6 +63,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
     return v === "student" || v === "hospital" ? (v as Role) : undefined;
   };
 
+  /** DBロウが無ければ補完（RLS self upsert を想定。onboard 済ならスキップされる） */
   const ensureProfileRow = async (
     uid: string,
     r: Role,
@@ -76,14 +79,28 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
         if (!data) await supabase.from("hospital_accounts").upsert({ id: uid, email, contact_name: name, hospital_name: null });
       }
     } catch {
-      // RLS で弾かれても onboard が作るのでここは無視
+      // RLSで弾かれても onboard が作成済みのはずなので握りつぶす
     }
   };
 
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  /** セッション + DB 取得（getSession + 短いリトライ入り） */
   const load = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // 初回マウントで null のことがあるため短いリトライを入れる
+      let { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        await wait(150);
+        ({ data: { session } } = await supabase.auth.getSession());
+      }
+      if (!session) {
+        await wait(300);
+        ({ data: { session } } = await supabase.auth.getSession());
+      }
+
+      const user = session?.user ?? null;
       if (!user) {
         setRole(undefined);
         setStudent(undefined);
@@ -94,6 +111,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
       }
 
       const email = user.email ?? "";
+      // full_name → name を最優先で保持（Users の Display name 表示に一致）
       const metaName =
         (user.user_metadata?.full_name as string | undefined) ??
         (user.user_metadata?.name as string | undefined) ??
@@ -101,12 +119,14 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
       setAuthEmail(email);
       setAuthName(metaName);
 
+      // role は metadata → cookie の順に決定
       const metaRole =
         (user.user_metadata?.role as Role | undefined) ??
         readRoleCookie() ??
         "student";
       setRole(metaRole);
 
+      // DB 行が無い場合は冪等に補完
       await ensureProfileRow(user.id, metaRole, email, metaName || null);
 
       if (metaRole === "student") {
@@ -128,27 +148,36 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
           .maybeSingle();
 
         setHospital(
-          data ?? { id: user.id, email: email || null, contact_name: metaName || null, hospital_name: null }
+          data ?? {
+            id: user.id,
+            email: email || null,
+            contact_name: metaName || null,
+            hospital_name: null,
+          }
         );
         setStudent(undefined);
       }
     } finally {
-      // 例外でも確実に false に戻す
+      // 例外でも必ず false にする（"…" に張り付かない）
       setLoading(false);
     }
   };
 
   useEffect(() => {
     load();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => load());
+
+    // セッション変化時の再取得（購読解除は正しいパスで）
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => load());
     return () => {
-      sub?.subscription?.unsubscribe?.();
+      subscription.unsubscribe();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /** アカウント保存（Users metadata と DB を両方更新） */
   const update = async (values: Partial<StudentProfile & HospitalAccount>) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user;
     if (!user || !role) return;
 
     if (role === "student") {
@@ -161,6 +190,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
         await supabase.from("students").upsert({ id: user.id, ...payload });
       }
       if (values.name !== undefined) {
+        // Users 一覧の Display name 列にも出るよう full_name も保存
         await supabase.auth
           .updateUser({ data: { name: values.name, full_name: values.name } })
           .catch(() => {});
@@ -184,6 +214,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
     }
   };
 
+  /** 表示名：full_name → name → DB → emailローカル部 */
   const displayName = useMemo(() => {
     const emailLocal = authEmail ? authEmail.split("@")[0] : "";
     if (role === "hospital") {
@@ -197,19 +228,15 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
     return student?.name?.trim() || authName?.trim() || emailLocal;
   }, [role, student, hospital, authName, authEmail]);
 
-  return (
-    <C.Provider
-      value={{
-        loading,
-        role,
-        student,
-        hospital,
-        displayName,
-        refresh: load,
-        update,
-      }}
-    >
-      {children}
-    </C.Provider>
-  );
+  const value: Ctx = {
+    loading,
+    role,
+    student,
+    hospital,
+    displayName,
+    refresh: load,
+    update,
+  };
+
+  return <C.Provider value={value}>{children}</C.Provider>;
 }

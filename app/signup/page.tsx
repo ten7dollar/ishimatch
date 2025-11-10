@@ -9,62 +9,63 @@ export default function SignupPage() {
   const [role, setRole] = useState<"student" | "hospital">("student");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [gradYear, setGradYear] = useState("");
   const [pwd, setPwd] = useState("");
   const [busy, setBusy] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    console.log("[SIGNUP] submit start", { email, role });
 
-    // 1) Supabaseでユーザー作成
-    const { error } = await supabase.auth.signUp({ email, password: pwd });
-    if (error) {
-      setBusy(false);
-      alert(`登録に失敗しました：${error.message}`);
-      return;
-    }
-
-    // 2) user 取得
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    // 3) プロファイル保存（学生：students、病院：将来 hospital_accounts 等）
     try {
+      // 1) Supabase ユーザー作成
+      const { error } = await supabase.auth.signUp({ email, password: pwd });
+      if (error) {
+        console.error("[SIGNUP] supabase signUp error", error);
+        alert(`登録に失敗しました：${error.message}`);
+        setBusy(false);
+        return;
+      }
+      console.log("[SIGNUP] supabase signUp OK");
+
+      // 2) user 取得 & metadata / profile 保存
+      const { data: { user } } = await supabase.auth.getUser();
       const fullName = name?.trim() ? name : null;
 
-      if (role === "student") {
-        await supabase.from("students").upsert({
-          id: user?.id,
-          name: fullName,
-          university: null,
-          grad_year: gradYear ? Number(gradYear) : null,
-        });
-      } else {
-        // 病院側は必要に応じて作成（例）
-        // await supabase.from("hospital_accounts").upsert({ id:user?.id, contact_name: fullName });
+      try {
+        await supabase.auth.updateUser({ data: { role, displayName: fullName ?? undefined } });
+        // 必要なら profile テーブルへ保存（students/hospital_accounts 等）
+        if (role === "student") {
+          await supabase.from("students").upsert({ id: user?.id, name: fullName, email });
+        } else {
+          // await supabase.from("hospital_accounts").upsert({ id:user?.id, contact_name: fullName, email });
+        }
+        console.log("[SIGNUP] metadata/profile saved");
+      } catch (err) {
+        console.warn("[SIGNUP] profile save failed (non fatal)", err);
       }
 
-      // user_metadata に role/name を記録（未設定なら）
-      await supabase.auth.updateUser({
-        data: { role, displayName: fullName ?? undefined },
-      }).catch(() => {});
-    } catch {}
+      // 3) /api/session にクッキー設定（middleware 互換）
+      const resp = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ role, email }),
+      });
+      console.log("[SIGNUP] /api/session POST status", resp.status);
 
-    // 4) 既存middleware互換：role/email を Cookie にセット
-    await fetch("/api/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", // ★ 必須
-      body: JSON.stringify({ role, email }),
-    }).catch(() => {});
-
-    await new Promise((r) => setTimeout(r, 50)); // ★ 反映待ち
-    setBusy(false);
-
-    // 5) 遷移
-    location.href = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      await new Promise((r) => setTimeout(r, 50));
+      const next = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      console.log("[SIGNUP] redirect ->", next);
+      location.href = next;
+    } catch (err) {
+      console.error("[SIGNUP] unexpected error", err);
+      // 万一でも遷移はさせる（ミドルウェアで戻される）
+      const next = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      location.href = next;
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -72,12 +73,14 @@ export default function SignupPage() {
       <div className="max-w-md w-full bg-white shadow-card rounded-xl p-8">
         {/* ロゴ */}
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-primary-500 text-white text-xl font-bold w-12 h-12 flex items-center justify-center rounded-full">医</div>
+          <div className="bg-primary-500 text-white text-xl font-bold w-12 h-12 flex items-center justify-center rounded-full">
+            医
+          </div>
           <h1 className="text-xl font-bold mt-2 text-primary-700">医志マッチ</h1>
           <p className="text-text-muted text-sm">志に合う病院に出会える。</p>
         </div>
 
-        {/* ロール切替 */}
+        {/* ロール切替（UIそのまま） */}
         <div className="flex mb-6 bg-primary-50 rounded-full p-1">
           <button
             type="button"
@@ -99,7 +102,7 @@ export default function SignupPage() {
           </button>
         </div>
 
-        <h2 className="text-lg font-semibold mb-3 text-primary-700">アカウント情報</h2>
+        <h2 className="text-lg font-semibold text-primary-700">アカウント情報</h2>
 
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
@@ -122,16 +125,6 @@ export default function SignupPage() {
               type="email"
               placeholder="sample@example.com"
               required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm text-text-muted">卒業予定年（任意）</label>
-            <input
-              value={gradYear}
-              onChange={(e) => setGradYear(e.target.value)}
-              className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
-              placeholder="2026"
             />
           </div>
 

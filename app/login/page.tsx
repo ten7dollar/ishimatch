@@ -1,4 +1,5 @@
 "use client";
+
 import { useState } from "react";
 import { createSupabaseBrowser } from "../lib/supabase/client";
 
@@ -13,49 +14,65 @@ export default function LoginPage() {
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
+    console.log("[LOGIN] submit start", { email, role });
 
-    // 1) Supabase Auth でログイン
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password: pwd,
-    });
-
-    setBusy(false);
-
-    if (error) {
-      alert(`ログインに失敗しました：${error.message}`);
-      return;
-    }
-
-    // 2) ロールが未設定のユーザーは初回ログイン時に救済
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    const resolvedRole =
-      (user?.user_metadata?.role as "student" | "hospital") ?? role;
-
-    if (user && !user?.user_metadata?.role) {
-      await supabase.auth.updateUser({ data: { role: resolvedRole } }).catch(() => {});
-    }
-
-    // 3) 既存middleware互換のため、role/email を Cookie にセット
-    await fetch("/api/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include", // ★ Set-Cookie を確実に反映
-      body: JSON.stringify({
-        role: resolvedRole,
+    try {
+      // 1) Supabase Auth
+      const { error } = await supabase.auth.signInWithPassword({
         email,
-      }),
-    }).catch(() => {});
+        password: pwd,
+      });
+      if (error) {
+        console.error("[LOGIN] supabase signIn error", error);
+        alert(`ログインに失敗しました：${error.message}`);
+        setBusy(false);
+        return;
+      }
+      console.log("[LOGIN] supabase signIn OK");
 
-    // Cookie が反映されるのを短く待機
-    await new Promise((r) => setTimeout(r, 50));
+      // 2) user & role 決定
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      const resolvedRole =
+        (user?.user_metadata?.role as "student" | "hospital") ?? role;
 
-    // 4) ロールに応じて遷移
-    location.href =
-      resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      // 未設定なら救済
+      if (user && !user?.user_metadata?.role) {
+        try {
+          await supabase.auth.updateUser({ data: { role: resolvedRole } });
+          console.log("[LOGIN] user_metadata.role set", resolvedRole);
+        } catch (err) {
+          console.warn("[LOGIN] set role failed (non fatal)", err);
+        }
+      }
+
+      // 3) /api/session にクッキーを設定
+      const resp = await fetch("/api/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ role: resolvedRole, email }),
+      });
+      console.log("[LOGIN] /api/session POST status", resp.status);
+
+      // Set-Cookie 反映待ち
+      await new Promise((r) => setTimeout(r, 50));
+
+      // 4) リダイレクト
+      const next =
+        resolvedRole === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      console.log("[LOGIN] redirect ->", next);
+      location.href = next;
+    } catch (err) {
+      console.error("[LOGIN] unexpected error", err);
+      alert("想定外のエラーが発生しました");
+      // クッキー未設定でもとりあえずダッシュに送る(ミドルウェアで戻される)
+      const next = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      location.href = next;
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -63,12 +80,14 @@ export default function LoginPage() {
       <div className="max-w-md w-full bg-white shadow-card rounded-xl p-8">
         {/* ロゴ */}
         <div className="flex flex-col items-center mb-6">
-          <div className="bg-primary-500 text-white text-xl font-bold w-12 h-12 flex items-center justify-center rounded-full">医</div>
+          <div className="bg-primary-500 text-white text-xl font-bold w-12 h-12 flex items-center justify-center rounded-full">
+            医
+          </div>
           <h1 className="text-xl font-bold mt-2 text-primary-700">医志マッチ</h1>
           <p className="text-text-muted text-sm">志に合う病院に出会える。</p>
         </div>
 
-        {/* ロール切替（UIはそのまま） */}
+        {/* ロール切替（UIそのまま） */}
         <div className="flex mb-6 bg-primary-50 rounded-full p-1">
           <button
             type="button"
@@ -90,18 +109,17 @@ export default function LoginPage() {
           </button>
         </div>
 
-        <h2 className="text-lg font-semibold mb-3 text-primary-700">
+        <h2 className="text-lg font-semibold text-primary-700">
           {role === "student" ? "学生ログイン" : "病院ログイン"}
         </h2>
 
-        {/* フォーム（UIはそのまま、onSubmit だけ上の関数に） */}
+        {/* フォーム（UIそのまま） */}
         <form className="space-y-4" onSubmit={onSubmit}>
           <div>
             <label className="block text-sm mb-1 text-text-muted">メールアドレス</label>
             <input
               type="email"
               value={email}
-              // ★ void を論理演算子に使わない。2行に分ける
               onChange={(e) => {
                 setPwd("");
                 setEmail(e.target.value);

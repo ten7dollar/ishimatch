@@ -13,13 +13,13 @@ import UserProfileProvider, { useUserProfile } from "../_providers/user-profile"
 
 const navItems = [
   { href: "/student/dashboard", label: "ホーム" },
-  { href: "/student/browse", label: "病院を探す" },
-  { href: "/student/saved", label: "検討リスト" },
-  { href: "/student/resume", label: "レジュメを作る" },
+  { href: "/student/browse",   label: "病院を探す" },
+  { href: "/student/saved",    label: "検討リスト" },
+  { href: "/student/resume",   label: "レジュメを作る" },
   { href: "/student/applications", label: "応募履歴" },
-  { href: "/student/scouts", label: "スカウト" },
-  { href: "/student/contact", label: "お問い合わせ" },
-  { href: "/student/account", label: "アカウント" },
+  { href: "/student/scouts",   label: "スカウト" },
+  { href: "/student/contact",  label: "お問い合わせ" },
+  { href: "/student/account",  label: "アカウント" },
 ];
 
 function BellWithBadge() {
@@ -39,14 +39,14 @@ function BellWithBadge() {
 }
 
 function StudentHeaderName() {
-  const { displayName } = useUserProfile(); // DBの名前→メール先頭
+  const { displayName, loading } = useUserProfile();
   return (
     <div className="flex items-center gap-2">
       <Link
         href="/student/dashboard"
         className="text-lg font-semibold text-primary-700 hover:underline"
       >
-        {displayName}
+        {loading ? "…" : (displayName || "アカウント")}
       </Link>
     </div>
   );
@@ -59,10 +59,12 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
       <FavoriteHospitalsProvider>
         <UserProfileProvider>
           <div className="min-h-screen flex bg-background">
-            {/* サイドバー（PC） */}
+            {/* サイドバー */}
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
-                <h1 className="font-bold text-lg text-primary-700">医志MATCH student</h1>
+                <h1 className="font-bold text-lg text-primary-700">
+                  医志MATCH student
+                </h1>
               </div>
               <nav className="flex-1 p-2 space-y-1">
                 {navItems.map((item) => {
@@ -86,7 +88,6 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
             {/* メイン */}
             <div className="flex-1 flex flex-col">
-              {/* ヘッダー */}
               <header className="w-full bg-white border-b flex items-center justify-between px-4 md:px-8 py-3">
                 <StudentHeaderName />
                 <div className="flex items-center gap-4">
@@ -102,11 +103,10 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 </div>
               </header>
 
-              {/* コンテンツ（モバイルのみ下余白） */}
               <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">
                 {children}
               </main>
-              {/* モバイルタブバー */}
+
               <StudentMobileTabBar />
             </div>
           </div>

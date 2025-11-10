@@ -21,13 +21,13 @@ const navItems = [
 ];
 
 function HospitalHeaderName() {
-  const { displayName } = useUserProfile(); // 病院名→担当者名→メール先頭
+  const { displayName, loading } = useUserProfile();
   return (
     <Link
       href="/hospital/dashboard"
       className="text-lg font-semibold text-primary-700 hover:underline"
     >
-      {displayName}
+      {loading ? "…" : displayName || "アカウント"}
     </Link>
   );
 }
@@ -43,7 +43,9 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             {/* サイドバー（PC） */}
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
-                <h1 className="font-bold text-lg text-primary-700">医志MATCH hospital</h1>
+                <h1 className="font-bold text-lg text-primary-700">
+                  医志MATCH hospital
+                </h1>
               </div>
               <nav className="flex-1 p-2 space-y-1">
                 {navItems.map((item) => {
@@ -72,13 +74,13 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                 <HospitalHeaderName />
 
                 <div className="flex items-center gap-6">
-                  {/* ステータス（ダミー表示はそのまま維持） */}
+                  {/* ステータス（ダミー表示のまま） */}
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-green-500" />
                     <span className="text-sm text-text-muted">公開中</span>
                   </div>
 
-                  {/* 通知（応募管理へ） */}
+                  {/* 通知（応募管理へ遷移） */}
                   <Link
                     href="/hospital/applications"
                     title="応募管理へ"
@@ -101,9 +103,10 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                 </div>
               </header>
 
-              {/* コンテンツ（モバイルのみ下余白） */}
+              {/* コンテンツ */}
               <main className="flex-1 p-8 md:pb-0 pb-24">{children}</main>
-              {/* モバイルタブバー */}
+
+              {/* モバイルバー */}
               <HospitalMobileTabBar />
             </div>
           </div>

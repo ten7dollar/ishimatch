@@ -1,18 +1,21 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 
 export async function POST() {
   try {
     const cookieStore = cookies();
     const supabase = createRouteHandlerClient({ cookies: () => cookieStore });
-    await supabase.auth.signOut(); // ← サーバ側でsbクッキーを削除
+
+    // Supabase のセッション Cookie(s) をサーバ側で削除
+    await supabase.auth.signOut();
+
     return NextResponse.json({ ok: true });
-  } catch (e) {
-    console.error("[auth/signout] error", e);
-    return NextResponse.json({ ok: false }, { status: 500 });
+  } catch (e: any) {
+    console.error('[auth/signout] error', e);
+    return NextResponse.json({ ok: false, error: e?.message ?? 'unknown' }, { status: 500 });
   }
 }

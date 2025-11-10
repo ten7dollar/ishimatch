@@ -32,11 +32,12 @@ export default function AccountPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // auth
+      // Auth 情報
       const email = user.email ?? "";
       const metaName = (user.user_metadata?.name as string | undefined) ?? "";
       const phone = (user.user_metadata?.phone as string | undefined) ?? "";
 
+      // 名前を姓/名に分割
       let lastName = "";
       let firstName = "";
       if (metaName) {
@@ -49,7 +50,7 @@ export default function AccountPage() {
         }
       }
 
-      // students
+      // students テーブル
       const { data: s } = await supabase
         .from("students")
         .select("name, university, grad_year")
@@ -58,8 +59,12 @@ export default function AccountPage() {
 
       if (s?.name && !metaName) {
         const parts = s.name.trim().split(/\s+/);
-        if (parts.length >= 2) { lastName = parts[0]; firstName = parts.slice(1).join(" "); }
-        else { lastName = s.name; }
+        if (parts.length >= 2) {
+          lastName = parts[0];
+          firstName = parts.slice(1).join(" ");
+        } else {
+          lastName = s.name;
+        }
       }
       const university = s?.university ?? "";
       const gradYear = s?.grad_year ? String(s.grad_year) : "";
@@ -77,28 +82,53 @@ export default function AccountPage() {
       setSavingProfile(true);
       setProfileMsg(null);
 
-      const fullName = [profileDraft.lastName, profileDraft.firstName].filter(Boolean).join(" ").trim() || null;
+      const fullName =
+        [profileDraft.lastName, profileDraft.firstName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || null;
 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("no user");
 
-      // students 更新
-      await supabase.from("students").upsert({
-        id: user.id,
-        name: fullName,
-        university: profileDraft.university || null,
-        grad_year: profileDraft.gradYear ? Number(profileDraft.gradYear) : null,
-      });
+      // 1) students 更新（自分の行のみ／RLS前提）
+      {
+        const { error: upsertErr } = await supabase
+          .from("students")
+          .upsert({
+            id: user.id,
+            name: fullName,
+            university: profileDraft.university || null,
+            grad_year: profileDraft.gradYear
+              ? Number(profileDraft.gradYear)
+              : null,
+          });
+        if (upsertErr) throw upsertErr;
+      }
 
-      // auth.user 更新（メール変更対応・metadataにphone/name）
-      const authPayload: any = { data: { name: fullName, phone: profileDraft.phone || null } };
-      if (profileDraft.email && profileDraft.email !== profile.email) authPayload.email = profileDraft.email;
-      await supabase.auth.updateUser(authPayload);
+      // 2) Auth metadata 更新（name/phone）
+      {
+        const metaPayload: { data: Record<string, unknown>; email?: string } = {
+          data: {
+            name: fullName || undefined,
+            phone: profileDraft.phone || undefined,
+          },
+        };
+
+        // ※メール変更は任意：Supabaseの設定次第で確認メールが必要になる
+        // if (profileDraft.email && profileDraft.email !== profile.email) {
+        //   metaPayload.email = profileDraft.email;
+        // }
+
+        const { error: metaErr } = await supabase.auth.updateUser(metaPayload);
+        if (metaErr) throw metaErr;
+      }
 
       setProfile(profileDraft);
       setProfileMsg("ok");
       setEditProfile(false);
-    } catch {
+    } catch (e) {
+      console.error("[Account] updateProfile error", e);
       setProfileMsg("ng");
     } finally {
       setSavingProfile(false);
@@ -107,18 +137,22 @@ export default function AccountPage() {
 
   async function changePassword() {
     if (!pw.current || !pw.next || !pw.confirm) {
-      alert("すべて入力してください"); return;
+      alert("すべて入力してください");
+      return;
     }
     if (pw.next !== pw.confirm) {
-      alert("新しいパスワードが一致しません"); return;
+      alert("新しいパスワードが一致しません");
+      return;
     }
     try {
       setChangingPw(true);
-      await supabase.auth.updateUser({ password: pw.next });
+      const { error } = await supabase.auth.updateUser({ password: pw.next });
+      if (error) throw error;
       setPwMsg("ok");
       setPw({ current: "", next: "", confirm: "" });
       setPwOpen(false);
-    } catch {
+    } catch (e) {
+      console.error("[Account] changePassword error", e);
       setPwMsg("ng");
     } finally {
       setChangingPw(false);
@@ -138,10 +172,16 @@ export default function AccountPage() {
             {profile.lastName ? profile.lastName[0] : "医"}
           </div>
           <label className="inline-flex items-center gap-2 px-3 py-2 border rounded cursor-pointer">
-            <input type="file" className="hidden" onChange={() => alert("アップロード処理は後日実装")} />
+            <input
+              type="file"
+              className="hidden"
+              onChange={() => alert("アップロード処理は後日実装")}
+            />
             画像をアップロード
           </label>
-          <p className="text-xs text-gray-500">推奨サイズ：400x400px、最大2MB</p>
+          <p className="text-xs text-gray-500">
+            推奨サイズ：400x400px、最大2MB
+          </p>
         </div>
       </section>
 
@@ -152,7 +192,11 @@ export default function AccountPage() {
 
           {!editProfile ? (
             <button
-              onClick={() => { setProfileDraft(profile); setEditProfile(true); setProfileMsg(null); }}
+              onClick={() => {
+                setProfileDraft(profile);
+                setEditProfile(true);
+                setProfileMsg(null);
+              }}
               className="text-sm px-3 py-1 rounded bg-primary-600 text-white"
             >
               入力する
@@ -160,7 +204,10 @@ export default function AccountPage() {
           ) : (
             <div className="flex gap-2">
               <button
-                onClick={() => { setEditProfile(false); setProfileDraft(profile); }}
+                onClick={() => {
+                  setEditProfile(false);
+                  setProfileDraft(profile);
+                }}
                 className="text-sm px-3 py-1 rounded border"
               >
                 キャンセル
@@ -187,17 +234,45 @@ export default function AccountPage() {
           </div>
         ) : (
           <div className="grid md:grid-cols-2 gap-4">
-            <Field label="姓" value={profileDraft.lastName} onChange={(v)=>setProfileDraft({...profileDraft, lastName:v})}/>
-            <Field label="名" value={profileDraft.firstName} onChange={(v)=>setProfileDraft({...profileDraft, firstName:v})}/>
-            <Field label="メールアドレス*" value={profileDraft.email} onChange={(v)=>setProfileDraft({...profileDraft, email:v})}/>
-            <Field label="電話番号" value={profileDraft.phone} onChange={(v)=>setProfileDraft({...profileDraft, phone:v})}/>
-            <Field label="大学" value={profileDraft.university} onChange={(v)=>setProfileDraft({...profileDraft, university:v})}/>
-            <Field label="卒業予定年" value={profileDraft.gradYear} onChange={(v)=>setProfileDraft({...profileDraft, gradYear:v})}/>
+            <Field
+              label="姓"
+              value={profileDraft.lastName}
+              onChange={(v) => setProfileDraft({ ...profileDraft, lastName: v })}
+            />
+            <Field
+              label="名"
+              value={profileDraft.firstName}
+              onChange={(v) => setProfileDraft({ ...profileDraft, firstName: v })}
+            />
+            <Field
+              label="メールアドレス*"
+              value={profileDraft.email}
+              onChange={(v) => setProfileDraft({ ...profileDraft, email: v })}
+            />
+            <Field
+              label="電話番号"
+              value={profileDraft.phone}
+              onChange={(v) => setProfileDraft({ ...profileDraft, phone: v })}
+            />
+            <Field
+              label="大学"
+              value={profileDraft.university}
+              onChange={(v) => setProfileDraft({ ...profileDraft, university: v })}
+            />
+            <Field
+              label="卒業予定年"
+              value={profileDraft.gradYear}
+              onChange={(v) => setProfileDraft({ ...profileDraft, gradYear: v })}
+            />
           </div>
         )}
 
-        {profileMsg === "ok" && <p className="text-green-600 text-sm">保存しました</p>}
-        {profileMsg === "ng" && <p className="text-red-600 text-sm">保存に失敗しました</p>}
+        {profileMsg === "ok" && (
+          <p className="text-green-600 text-sm">保存しました</p>
+        )}
+        {profileMsg === "ng" && (
+          <p className="text-red-600 text-sm">保存に失敗しました</p>
+        )}
       </section>
 
       {/* パスワード変更カード：押してから展開 */}
@@ -205,15 +280,31 @@ export default function AccountPage() {
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-gray-800">パスワード変更</h3>
           {!pwOpen ? (
-            <button onClick={()=>{ setPwOpen(true); setPwMsg(null); }} className="text-sm px-3 py-1 rounded bg-primary-600 text-white">
+            <button
+              onClick={() => {
+                setPwOpen(true);
+                setPwMsg(null);
+              }}
+              className="text-sm px-3 py-1 rounded bg-primary-600 text-white"
+            >
               パスワードを変更する
             </button>
           ) : (
             <div className="flex gap-2">
-              <button onClick={()=>{ setPwOpen(false); setPw({current:"", next:"", confirm:""}); }} className="text-sm px-3 py-1 rounded border">
+              <button
+                onClick={() => {
+                  setPwOpen(false);
+                  setPw({ current: "", next: "", confirm: "" });
+                }}
+                className="text-sm px-3 py-1 rounded border"
+              >
                 キャンセル
               </button>
-              <button onClick={changePassword} disabled={changingPw} className="text-sm px-3 py-1 rounded bg-primary-600 text-white">
+              <button
+                onClick={changePassword}
+                disabled={changingPw}
+                className="text-sm px-3 py-1 rounded bg-primary-600 text-white"
+              >
                 {changingPw ? "変更中..." : "保存"}
               </button>
             </div>
@@ -222,21 +313,35 @@ export default function AccountPage() {
 
         {pwOpen && (
           <div className="grid md:grid-cols-3 gap-4">
-            <PasswordField label="現在のパスワード*" value={pw.current} onChange={(v)=>setPw({...pw, current:v})}/>
-            <PasswordField label="新しいパスワード*" value={pw.next} onChange={(v)=>setPw({...pw, next:v})}/>
-            <PasswordField label="新しいパスワード（確認）*" value={pw.confirm} onChange={(v)=>setPw({...pw, confirm:v})}/>
+            <PasswordField
+              label="現在のパスワード*"
+              value={pw.current}
+              onChange={(v) => setPw({ ...pw, current: v })}
+            />
+            <PasswordField
+              label="新しいパスワード*"
+              value={pw.next}
+              onChange={(v) => setPw({ ...pw, next: v })}
+            />
+            <PasswordField
+              label="新しいパスワード（確認）*"
+              value={pw.confirm}
+              onChange={(v) => setPw({ ...pw, confirm: v })}
+            />
           </div>
         )}
 
         {pwMsg === "ok" && <p className="text-green-600 text-sm">変更しました</p>}
-        {pwMsg === "ng" && <p className="text-red-600 text-sm">変更に失敗しました</p>}
+        {pwMsg === "ng" && (
+          <p className="text-red-600 text-sm">変更に失敗しました</p>
+        )}
       </section>
     </main>
   );
 }
 
 /* ------- 小さな部品（原文そのまま） ------- */
-function ReadOnly({ label, value }: { label:string; value:string }) {
+function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <label className="text-sm text-gray-600">{label}</label>
@@ -244,19 +349,44 @@ function ReadOnly({ label, value }: { label:string; value:string }) {
     </div>
   );
 }
-function Field({ label, value, onChange }: { label:string; value:string; onChange:(v:string)=>void }) {
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
       <label className="text-sm text-gray-600">{label}</label>
-      <input value={value} onChange={(e)=>onChange(e.target.value)} className="w-full border rounded px-3 py-2" />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border rounded px-3 py-2"
+      />
     </div>
   );
 }
-function PasswordField({ label, value, onChange }: { label:string; value:string; onChange:(v:string)=>void }) {
+function PasswordField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
   return (
     <div>
       <label className="text-sm text-gray-600">{label}</label>
-      <input type="password" value={value} onChange={(e)=>onChange(e.target.value)} className="w-full border rounded px-3 py-2" />
+      <input
+        type="password"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full border rounded px-3 py-2"
+      />
     </div>
   );
 }

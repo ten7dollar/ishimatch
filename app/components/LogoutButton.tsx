@@ -1,20 +1,18 @@
 "use client";
-
 import { createSupabaseBrowser } from "../lib/supabase/client";
 
 export default function LogoutButton({ className = "" }: { className?: string }) {
   const handleLogout = async () => {
     const supabase = createSupabaseBrowser();
-    // 1) Supabaseセッションを終了（失敗しても次へ）
     try { await supabase.auth.signOut(); } catch {}
-    // 2) role/email クッキー削除（middleware互換）
-    try {
-      await fetch("/api/session", {
-        method: "DELETE",
-        credentials: "same-origin",
-      });
-    } catch {}
-    // 3) /login へ（/ でも良いが、明示的に /login 推奨）
+
+    // 1) サーバ側で Supabase クッキーを削除
+    await fetch("/api/auth/signout", { method: "POST", credentials: "include" }).catch(() => {});
+
+    // 2) role / email クッキーも削除
+    await fetch("/api/session", { method: "DELETE", credentials: "include" }).catch(() => {});
+
+    await new Promise(r => setTimeout(r, 100));
     location.href = "/login";
   };
 

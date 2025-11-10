@@ -18,7 +18,7 @@ export default function SignupPage() {
     console.log("[SIGNUP] submit start", { email, role });
 
     try {
-      // 1) Supabase ユーザー作成
+      // 1) Supabase でユーザー作成
       const { error } = await supabase.auth.signUp({ email, password: pwd });
       if (error) {
         console.error("[SIGNUP] supabase signUp error", error);
@@ -28,33 +28,58 @@ export default function SignupPage() {
       }
       console.log("[SIGNUP] supabase signUp OK");
 
-      // 2) user 取得 & metadata / profile 保存
-      const { data: { user } } = await supabase.auth.getUser();
+      // 2) user を取得し、Auth metadata + profile テーブルに保存
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
       const fullName = name?.trim() ? name : null;
 
+      // (a) Auth の metadata に role / name を保存（ここは Promise なので await できる）
       try {
-        await supabase.auth.updateUser({ data: { role, displayName: fullName ?? undefined } });
-        // 必要なら profile テーブルへ保存（students/hospital_accounts 等）
-        if (role === "student") {
-          await supabase.from("students").upsert({ id: user?.id, name: fullName, email });
-        } else {
-          // await supabase.from("hospital_accounts").upsert({ id:user?.id, contact_name: fullName, email });
-        }
-        console.log("[SIGNUP] metadata/profile saved");
+        const { error: metaErr } = await supabase.auth.updateUser({
+          data: { role, name: fullName || undefined },
+        });
+        if (metaErr) console.warn("[SIGNUP] updateUser metadata error", metaErr);
       } catch (err) {
-        console.warn("[SIGNUP] profile save failed (non fatal)", err);
+        console.warn("[SIGNUP] updateUser metadata unexpected error", err);
+      }
+
+      // (b) students/hospital_accounts 等の profile へ保存
+      try {
+        if (user?.id) {
+          if (role === "student") {
+            // PostgrestQueryBuilder は .catch() を持たないため、await + try/catch で扱う
+            const { error: upsertErr } = await supabase
+              .from("students")
+              .upsert({ id: user.id, name: fullName, email });
+
+            if (upsertErr) console.error("[SIGNUP] students upsert error", upsertErr);
+          } else {
+            // 病院側を使う場合はこちらで upsert
+            // const { error: upsertErr } = await supabase
+            //   .from("hospital_accounts")
+            //   .upsert({ id: user.id, contact_name: fullName, email });
+            // if (upsertErr) console.error("[SIGNUP] hospital_accounts upsert error", upsertErr);
+          }
+        }
+      } catch (err) {
+        console.warn("[SIGNUP] profile upsert unexpected error", err);
       }
 
       // 3) /api/session にクッキー設定（middleware 互換）
       const resp = await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        credentials: "include", // ★ Cookie を確実に付与
         body: JSON.stringify({ role, email }),
       });
       console.log("[SIGNUP] /api/session POST status", resp.status);
 
+      // Set-Cookie 反映待ち
       await new Promise((r) => setTimeout(r, 50));
+
+      // 4) ロール別に遷移（UI は原文のまま）
       const next = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
       console.log("[SIGNUP] redirect ->", next);
       location.href = next;
@@ -140,7 +165,7 @@ export default function SignupPage() {
             />
           </div>
 
-          <button className="btn-primary w-full" disabled={busy}>
+        <button className="btn-primary w-full" disabled={busy}>
             {busy ? "送信中..." : "登録して進む"}
           </button>
         </form>

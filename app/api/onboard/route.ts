@@ -1,11 +1,11 @@
+// app/api/onboard/route.ts
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { cookies } from 'next/headers';
 
-// Service Role Admin クライアントをここで直に作成（相対での import 問題を回避）
+// Service Role Admin クライアント（envはVercel/ローカルともに設定済み前提）
 function createSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -14,38 +14,39 @@ function createSupabaseAdmin() {
 
 export async function POST(req: Request) {
   const admin = createSupabaseAdmin();
+
   try {
     const { userId, role, email, name } = await req.json();
-    console.log('[onboard] payload', { userId, role, email, name });
 
     if (!userId || !role) {
-      return NextResponse.json({ ok:false, error:'bad request (missing userId/role)' }, { status:400 });
-    }
-    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      return NextResponse.json({ ok:false, error:'service role key not loaded' }, { status:500 });
+      return NextResponse.json({ ok: false, error: 'bad request' }, { status: 400 });
     }
 
-    let res: any = null;
-
+    // 1) 個人DB行の作成 / 更新
     if (role === 'student') {
-      const { data, error } = await admin
+      const { error } = await admin
         .from('students')
-        .upsert([{ id: userId, email: email ?? null, name: name ?? null }])
-        .select('*');                       // 挿入された行を返す（デバッグ可視化用）
+        .upsert([{ id: userId, email: email ?? null, name: name ?? null }]);
       if (error) throw error;
-      res = data;
     } else {
-      const { data, error } = await admin
+      const { error } = await admin
         .from('hospital_accounts')
-        .upsert([{ id: userId, email: email ?? null, contact_name: name ?? null }])
-        .select('*');
+        .upsert([{ id: userId, email: email ?? null, contact_name: name ?? null }]);
       if (error) throw error;
-      res = data;
     }
 
-    return NextResponse.json({ ok:true, row:res }, { status:200 });
+    // 2) Auth Users の metadata を Service Role で更新（Display name 表示用に full_name も保存）
+    const { error: metaErr } = await admin.auth.admin.updateUserById(userId, {
+      user_metadata: { role, name: name ?? null, full_name: name ?? null },
+    });
+    if (metaErr) throw metaErr;
+
+    return NextResponse.json({ ok: true }, { status: 200 });
   } catch (e: any) {
-    console.error('[onboard] error', e);
-    return NextResponse.json({ ok:false, error: e?.message ?? 'unknown' }, { status:500 });
+    // 本番でもわかるように stage だけ簡潔に返す（必要なら message も返す）
+    return NextResponse.json(
+      { ok: false, error: e?.message ?? 'unknown' },
+      { status: 500 }
+    );
   }
 }

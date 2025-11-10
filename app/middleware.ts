@@ -3,6 +3,9 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 
+/** ここをあなたの Primary ドメインに合わせる */
+const CANONICAL_HOST = "ishimatch.vercel.app";
+
 const PUBLIC_PATHS = [
   "/api/session",          // ★ 最優先で許可
   "/login",
@@ -14,6 +17,16 @@ const PUBLIC_PATHS = [
 ];
 
 export async function middleware(req: NextRequest) {
+  // --- [追加] 0) 本番は常に Primary ドメインへ 308 リダイレクト（全メソッド）
+  //      サブドメイン(ishimatch-xxxx.vercel.app)で来たリクエストを primary に統一
+  //      これにより Cookie が常に同じドメインに付与/削除される
+  const host = req.headers.get("host") || "";
+  if (process.env.VERCEL === "1" && host !== CANONICAL_HOST) {
+    const url = req.nextUrl.clone();
+    url.host = CANONICAL_HOST;
+    return NextResponse.redirect(url, 308); // 308 は method/body を保持する
+  }
+
   const res = NextResponse.next();
   const { pathname } = req.nextUrl;
 
@@ -62,4 +75,5 @@ export async function middleware(req: NextRequest) {
 
   return res;
 }
+
 export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };

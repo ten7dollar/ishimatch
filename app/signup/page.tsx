@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { createSupabaseBrowser } from "../lib/supabase/client";
 
 export default function SignupPage() {
+  const router = useRouter();
   const supabase = createSupabaseBrowser();
 
   const [role, setRole] = useState<"student" | "hospital">("student");
@@ -14,14 +16,17 @@ export default function SignupPage() {
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
 
     try {
-      // 1) Supabase でユーザー作成（metadata に role/name を同時保存）
+      // 1) Supabase でユーザー作成（metadata に role / name を付与）
       const { data, error } = await supabase.auth.signUp({
         email,
         password: pwd,
-        options: { data: { role, name } },
+        options: {
+          data: { role, name },
+        },
       });
       if (error) {
         alert(`登録に失敗しました：${error.message}`);
@@ -29,9 +34,10 @@ export default function SignupPage() {
         return;
       }
 
-      const userId = data.user?.id || null;
+      const userId = data.user?.id ?? null;
 
       // 2) 個人DB行を“必ず”作成（Service Role API）
+      //    - students または hospital_accounts に行を作る
       if (userId) {
         await fetch("/api/onboard", {
           method: "POST",
@@ -40,7 +46,7 @@ export default function SignupPage() {
         }).catch(() => {});
       }
 
-      // 3) middleware 互換：role/email を Cookie に付与
+      // 3) middleware 互換：role/email を Cookie に付与（always include）
       await fetch("/api/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,12 +54,16 @@ export default function SignupPage() {
         body: JSON.stringify({ role, email }),
       }).catch(() => {});
 
-      // Set-Cookie 反映待ち（遷移前に）
-      await new Promise((r) => setTimeout(r, 50));
+      // Cookie 反映待ち
+      await new Promise((r) => setTimeout(r, 60));
 
-      // 4) ロール別ダッシュへ
-      location.href =
-        role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
+      // 4) 遷移
+      // 学生はオンボーディングに。病院はダッシュボード（必要なら /hospital/onboarding に差し替え可）
+      if (role === "student") {
+        router.replace("/student/onboarding");
+      } else {
+        router.replace("/hospital/dashboard");
+      }
     } finally {
       setBusy(false);
     }

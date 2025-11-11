@@ -4,28 +4,58 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createSupabaseBrowser } from '@/app/lib/supabase/client';
 
-/** ---- 型（必要最低限） ---- */
+/** ---- 型 ---- */
+type Gender = '' | '男性' | '女性' | 'その他';
+type DutyPref = '' | '〜2回' | '3回〜4回' | '5回以上' | '特になし';
+type SalaryBand = '' | '〜399万円' | '400〜599万円' | '600〜799万円' | '800万円〜' | '特になし';
+type Prefecture =
+  | ''
+  | '北海道'
+  | '青森県' | '岩手県' | '宮城県' | '秋田県' | '山形県' | '福島県'
+  | '茨城県' | '栃木県' | '群馬県' | '埼玉県' | '千葉県' | '東京都' | '神奈川県'
+  | '新潟県' | '富山県' | '石川県' | '福井県' | '山梨県' | '長野県'
+  | '岐阜県' | '静岡県' | '愛知県' | '三重県'
+  | '滋賀県' | '京都府' | '大阪府' | '兵庫県' | '奈良県' | '和歌山県'
+  | '鳥取県' | '島根県' | '岡山県' | '広島県' | '山口県'
+  | '徳島県' | '香川県' | '愛媛県' | '高知県'
+  | '福岡県' | '佐賀県' | '長崎県' | '熊本県' | '大分県' | '宮崎県' | '鹿児島県' | '沖縄県';
+
 type StudentRow = {
   id: string;
-  // 既存カラム
   name: string | null;
   email: string | null;
   university?: string | null;
   grad_year?: number | null;
-  // 追加カラム（前提のDDLで追加済）
   last_name?: string | null;
   first_name?: string | null;
   last_name_kana?: string | null;
   first_name_kana?: string | null;
   gender?: string | null;
-  birthdate?: string | null;
+  birthdate?: string | null; // YYYY-MM-DD
   faculty?: string | null;
   phone?: string | null;
-  preferences?: any; // jsonb
+  preferences?: {
+    area?: Prefecture | null;
+    duty?: DutyPref | null;
+    salaryMin?: SalaryBand | string | number | null; // 旧互換: number/string も許容
+  } | null;
 };
 
-/** ---- ステップの定義 ---- */
+/** ---- 定数 ---- */
 const STEPS = ['基本情報', '大学情報', '連絡先', '希望条件'] as const;
+
+// 生年月日の年・月・日（年は現在-45〜現在-18を生成）
+const now = new Date();
+const BIRTH_YEARS: number[] = Array.from({ length: 28 }, (_, i) => now.getFullYear() - 18 - i).reverse(); // 例: 1980〜2007くらい
+const BIRTH_MONTHS: number[] = Array.from({ length: 12 }, (_, i) => i + 1);
+const BIRTH_DAYS: number[] = Array.from({ length: 31 }, (_, i) => i + 1);
+
+// 卒業年度
+const GRAD_YEARS: number[] = [2026, 2027, 2028, 2029];
+
+// 当直回数・年収バンド
+const DUTY_OPTS: DutyPref[] = ['〜2回', '3回〜4回', '5回以上', '特になし'];
+const SALARY_BANDS: SalaryBand[] = ['〜399万円', '400〜599万円', '600〜799万円', '800万円〜', '特になし'];
 
 export default function StudentOnboardingPage() {
   const sb = useMemo(() => createSupabaseBrowser(), []);
@@ -34,39 +64,41 @@ export default function StudentOnboardingPage() {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
 
-  // プリフィル用の状態
+  // 基本情報
   const [email, setEmail] = useState('');
   const [lastName, setLastName] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastKana, setLastKana] = useState('');
   const [firstKana, setFirstKana] = useState('');
-  const [gender, setGender] = useState('');
-  const [birth, setBirth] = useState('');
+  const [gender, setGender] = useState<Gender>('');
+  const [birthYear, setBirthYear] = useState<number | ''>('');
+  const [birthMonth, setBirthMonth] = useState<number | ''>('');
+  const [birthDay, setBirthDay] = useState<number | ''>('');
 
+  // 大学情報
   const [university, setUniversity] = useState('');
   const [faculty, setFaculty] = useState('');
   const [gradYear, setGradYear] = useState<number | ''>('');
 
+  // 連絡先
   const [phone, setPhone] = useState('');
 
   // 希望条件（jsonb）
-  const [prefArea, setPrefArea] = useState('');
-  const [prefDuty, setPrefDuty] = useState('');
-  const [prefSalary, setPrefSalary] = useState<number | ''>('');
+  const [prefArea, setPrefArea] = useState<Prefecture>('');
+  const [dutyPref, setDutyPref] = useState<DutyPref>('');
+  const [salaryBand, setSalaryBand] = useState<SalaryBand>('');
 
-  /** ユーザー読み込み＆プリフィル */
+  /** 初期ロード：Auth + students */
   useEffect(() => {
     (async () => {
       setLoading(true);
       const { data: { user } } = await sb.auth.getUser();
       if (!user) {
-        // 未ログインならログインへ
         router.replace('/login');
         return;
       }
       setEmail(user.email ?? '');
 
-      // 既存行
       const { data: row } = await sb
         .from('students')
         .select('*')
@@ -78,18 +110,47 @@ export default function StudentOnboardingPage() {
         setFirstName(row.first_name ?? '');
         setLastKana(row.last_name_kana ?? '');
         setFirstKana(row.first_name_kana ?? '');
-        setGender(row.gender ?? '');
-        setBirth(row.birthdate ?? '');
+        setGender((row.gender as Gender) ?? '');
+        // birthdate → 年月日に分解
+        if (row.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(row.birthdate)) {
+          const [y, m, d] = row.birthdate
+            .split('-')
+            .map((v: string) => Number(v)) as [number, number, number];
+         setBirthYear(y || '');
+         setBirthMonth(m || '');
+         setBirthDay(d || '');
+        }
         setUniversity(row.university ?? '');
         setFaculty(row.faculty ?? '');
         setGradYear(row.grad_year ?? '');
+
         setPhone(row.phone ?? '');
-        const p = row.preferences ?? {};
-        setPrefArea(p.area ?? '');
-        setPrefDuty(p.duty ?? '');
-        setPrefSalary(p.salaryMin ?? '');
-      } else {
-        // まだ row が無ければ空で良い（/api/onboard で作られている前提）
+
+        // preferences 互換
+        const p = row.preferences || {};
+        setPrefArea((p.area as Prefecture) ?? '');
+        setDutyPref((p.duty as DutyPref) ?? (p.dutyPref as DutyPref) ?? '');
+        // number/string いずれも帯に寄せる（単純マップ）
+        const rawSalary = p.salaryMin;
+        if (typeof rawSalary === 'number') {
+          if (rawSalary >= 800) setSalaryBand('800万円〜');
+          else if (rawSalary >= 600) setSalaryBand('600〜799万円');
+          else if (rawSalary >= 400) setSalaryBand('400〜599万円');
+          else setSalaryBand('〜399万円');
+        } else if (typeof rawSalary === 'string') {
+          // 既に帯ならそのまま / 数字文字列なら上と同じ処理へ
+          if (SALARY_BANDS.includes(rawSalary as SalaryBand)) {
+            setSalaryBand(rawSalary as SalaryBand);
+          } else {
+            const n = Number(rawSalary);
+            if (!isNaN(n)) {
+              if (n >= 800) setSalaryBand('800万円〜');
+              else if (n >= 600) setSalaryBand('600〜799万円');
+              else if (n >= 400) setSalaryBand('400〜599万円');
+              else setSalaryBand('〜399万円');
+            }
+          }
+        }
       }
       setLoading(false);
     })();
@@ -104,65 +165,62 @@ export default function StudentOnboardingPage() {
     if (error) throw error;
   };
 
-  /** 1ステップ分の保存（次へボタン） */
+  /** step保存 */
   const onSaveStep = async () => {
     try {
-      switch (step) {
-        case 0: {
-          // 基本情報 → students + Users.metadata（full_name）
-          const fullName =
-            [lastName.trim(), firstName.trim()].filter(Boolean).join(' ') || null;
+      if (step === 0) {
+        const fullName =
+          [lastName.trim(), firstName.trim()].filter(Boolean).join(' ') || null;
 
-          await upsertStudent({
-            last_name: lastName || null,
-            first_name: firstName || null,
-            last_name_kana: lastKana || null,
-            first_name_kana: firstKana || null,
-            gender: gender || null,
-            birthdate: birth || null,
-            name: fullName,           // 既存 name も更新しておく
-            email,
-          });
+        // 生年月日（3つ揃ったときだけ保存）
+        const birthdate =
+          birthYear && birthMonth && birthDay
+            ? `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`
+            : null;
 
-          // Users.metadata にも保存（ヘッダー表示にすぐ効く）
-          await sb.auth.updateUser({
-            data: { full_name: fullName ?? undefined, name: fullName ?? undefined },
-          }).catch(() => {});
-          break;
-        }
+        await upsertStudent({
+          last_name: lastName || null,
+          first_name: firstName || null,
+          last_name_kana: lastKana || null,
+          first_name_kana: firstKana || null,
+          gender: gender || null,
+          birthdate,
+          name: fullName, // 既存 name も更新
+          email,
+        });
 
-        case 1: {
-          await upsertStudent({
-            university: university || null,
-            faculty: faculty || null,
-            grad_year: gradYear ? Number(gradYear) : null,
-          });
-          break;
-        }
+        // Users.metadata も更新（ヘッダー即時反映）
+        await sb.auth.updateUser({
+          data: { full_name: fullName ?? undefined, name: fullName ?? undefined },
+        }).catch(() => {});
+      }
 
-        case 2: {
-          await upsertStudent({
-            phone: phone || null,
-          });
-          break;
-        }
+      if (step === 1) {
+        await upsertStudent({
+          university: university || null,
+          faculty: faculty || null,
+          grad_year: gradYear ? Number(gradYear) : null,
+        });
+      }
 
-        case 3: {
-          await upsertStudent({
-            preferences: {
-              area: prefArea || null,
-              duty: prefDuty || null,
-              salaryMin: prefSalary ? Number(prefSalary) : null,
-            },
-          });
-          break;
-        }
+      if (step === 2) {
+        await upsertStudent({ phone: phone || null });
+      }
+
+      if (step === 3) {
+        await upsertStudent({
+          preferences: {
+            area: (prefArea as Prefecture) || null,
+            duty: (dutyPref as DutyPref) || null,
+            // 文字帯で保存（JSONBなので柔軟、将来正規化可）
+            salaryMin: (salaryBand as SalaryBand) || null,
+          },
+        });
       }
 
       if (step < STEPS.length - 1) {
         setStep((s) => s + 1);
       } else {
-        // 完了 → ダッシュボードへ
         router.replace('/student/dashboard');
       }
     } catch (e: any) {
@@ -189,7 +247,7 @@ export default function StudentOnboardingPage() {
         <p className="text-sm text-gray-500">プロフィールを完成させて、最適な病院を見つけましょう</p>
       </div>
 
-      {/* ステップインジケータ */}
+      {/* ステップ/進捗 */}
       <div className="mb-6">
         <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
           <span>ステップ {step + 1} / {STEPS.length}</span>
@@ -208,7 +266,7 @@ export default function StudentOnboardingPage() {
         </div>
       </div>
 
-      {/* ステップのフォーム */}
+      {/* 入力カード */}
       <section className="bg-white rounded-xl shadow-card p-6 space-y-4">
         {step === 0 && (
           <>
@@ -218,8 +276,29 @@ export default function StudentOnboardingPage() {
               <Field label="名*" value={firstName} onChange={setFirstName} />
               <Field label="セイ" value={lastKana} onChange={setLastKana} />
               <Field label="メイ" value={firstKana} onChange={setFirstKana} />
-              <Field label="性別" value={gender} onChange={setGender} placeholder="男性/女性/その他" />
-              <Field label="生年月日" value={birth} onChange={setBirth} placeholder="YYYY-MM-DD" />
+
+              {/* 性別：選択式 */}
+              <SelectField label="性別" value={gender} onChange={(v)=> setGender(v as Gender)}>
+                <option value="">選択してください</option>
+                {(['男性','女性','その他'] as Gender[]).map(g => <option key={g} value={g}>{g}</option>)}
+              </SelectField>
+
+              {/* 生年月日：年/月/日 */}
+              <div className="grid grid-cols-3 gap-2">
+                <SelectField label="生年" value={birthYear} onChange={(v)=> setBirthYear(Number(v) || '' )}>
+                  <option value="">年</option>
+                  {BIRTH_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                </SelectField>
+                <SelectField label="月" value={birthMonth} onChange={(v)=> setBirthMonth(Number(v) || '' )}>
+                  <option value="">月</option>
+                  {BIRTH_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
+                </SelectField>
+                <SelectField label="日" value={birthDay} onChange={(v)=> setBirthDay(Number(v) || '' )}>
+                  <option value="">日</option>
+                  {BIRTH_DAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                </SelectField>
+              </div>
+
               <ReadOnly label="メール" value={email} />
             </TwoCols>
           </>
@@ -231,7 +310,11 @@ export default function StudentOnboardingPage() {
             <TwoCols>
               <Field label="大学" value={university} onChange={setUniversity} />
               <Field label="学部" value={faculty} onChange={setFaculty} />
-              <Field label="卒業予定年" value={gradYear} onChange={(v)=> setGradYear(v as any)} placeholder="2026" />
+              {/* 卒業年度：選択式 */}
+              <SelectField label="卒業年度" value={gradYear} onChange={(v)=> setGradYear(Number(v) || '' )}>
+                <option value="">選択してください</option>
+                {GRAD_YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+              </SelectField>
             </TwoCols>
           </>
         )}
@@ -250,14 +333,20 @@ export default function StudentOnboardingPage() {
           <>
             <h2 className="font-semibold text-primary-700">希望条件</h2>
             <TwoCols>
-              <Field label="希望エリア" value={prefArea} onChange={setPrefArea} placeholder="例：東京/関西 など" />
-              <Field label="当直回数の希望" value={prefDuty} onChange={setPrefDuty} placeholder="～2回/3～4回/5回～ など" />
-              <Field label="最低希望年収" value={prefSalary} onChange={(v)=> setPrefSalary(Number(v) as any)} placeholder="600" />
+              <Field label="希望エリア" value={prefArea} onChange={(v)=> setPrefArea(v as Prefecture)} placeholder="例：東京都 など" />
+              <SelectField label="当直回数" value={dutyPref} onChange={(v)=> setDutyPref(v as DutyPref)}>
+                <option value="">選択してください</option>
+                {DUTY_OPTS.map(d => <option key={d} value={d}>{d}</option>)}
+              </SelectField>
+              <SelectField label="最低希望年収" value={salaryBand} onChange={(v)=> setSalaryBand(v as SalaryBand)}>
+                <option value="">選択してください</option>
+                {SALARY_BANDS.map(b => <option key={b} value={b}>{b}</option>)}
+              </SelectField>
             </TwoCols>
           </>
         )}
 
-        {/* フッター操作 */}
+        {/* 操作 */}
         <div className="flex items-center justify-between pt-4">
           <button
             className="px-4 py-2 text-sm rounded border"
@@ -268,7 +357,7 @@ export default function StudentOnboardingPage() {
           </button>
 
           <div className="text-xs text-gray-400">
-            <a href="/student/dashboard" className="hover:underline">後でプロフィールを設定する</a>
+            <a href="/student/dashboard" className="hover:underline">後で設定する</a>
           </div>
 
           <button
@@ -299,6 +388,22 @@ function Field({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
+    </div>
+  );
+}
+function SelectField({
+  label, value, onChange, children,
+}: { label: string; value: any; onChange: (v: string) => void; children: React.ReactNode }) {
+  return (
+    <div>
+      <label className="block text-sm text-gray-600 mb-1">{label}</label>
+      <select
+        className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+        value={value as any}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {children}
+      </select>
     </div>
   );
 }

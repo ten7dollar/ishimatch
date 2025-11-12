@@ -1,153 +1,127 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link"; // ★ 追加
-import { Heart } from "lucide-react";
-import { useFavoriteHospitals, type Hospital } from "../../_providers/favorite-hospitals";
+import Link from "next/link";
+import { createSupabaseBrowser } from "@/app/lib/supabase/client";
+
+/** hospitals の行 */
+type HospitalRow = {
+  id: string;
+  name: string;
+  prefecture: string | null;
+  city: string | null;
+  address: string | null;
+  website_url: string | null;
+  facility_type: "二次救急" | "三次救急" | "どちらでも" | "不明";
+  bed_count: number | null;
+  residents_first_year: number | null;
+  duty_frequency: "~2回" | "3~4回" | "5回以上" | "特になし";
+  salary_1st_year_min: number | null;
+  salary_1st_year_max: number | null;
+  bonus: string | null;
+  housing_allowance: boolean | null;
+  overtime_allowance: boolean | null;
+  commute_allowance: boolean | null;
+  // 任意: 画像カラムが無いのでプレースホルダ利用
+};
 
 export default function StudentHospitalDetail() {
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
   const params = useParams();
-  const idParam = Array.isArray(params?.id) ? params.id[0] : (params?.id as string) || "unknown";
-  const { isFavorite, toggleFavorite } = useFavoriteHospitals();
+  const idParam = Array.isArray(params?.id) ? params.id[0] : (params?.id as string);
 
-  // ← 本番は idParam でDBから取得してください
-  const hospital = getHospitalById(idParam);
+  const [row, setRow] = useState<HospitalRow | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  // favorites に保存する最小情報
-  const favPayload: Hospital = {
-    id: idParam,
-    name: hospital.name,
-    prefecture: hospital.meta.prefecture,
-    area: hospital.meta.area,
-    salary: hospital.meta.salary,
-    emergency: hospital.meta.emergency,
-    residents: hospital.meta.residents,
-    beds: hospital.meta.beds,
-    duty: hospital.meta.duty,
-    tags: hospital.meta.tags,
-  };
+  useEffect(() => {
+    if (!idParam) return;
+    (async () => {
+      setLoading(true);
+      const { data, error } = await supabase.from("hospitals").select("*").eq("id", idParam).maybeSingle();
+      if (!error) setRow((data as HospitalRow) ?? null);
+      setLoading(false);
+    })();
+  }, [idParam, supabase]);
 
-  const active = isFavorite(idParam);
+  if (loading) {
+    return (
+      <main className="max-w-5xl mx-auto px-8 py-10">
+        <p className="text-gray-500">読み込み中…</p>
+      </main>
+    );
+  }
+  if (!row) {
+    return (
+      <main className="max-w-5xl mx-auto px-8 py-10">
+        <p className="text-gray-500">病院が見つかりませんでした。</p>
+        <Link href="/student/browse" className="underline text-primary-600">検索に戻る</Link>
+      </main>
+    );
+  }
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
-      {/* Hero */}
-      <section className="rounded-xl overflow-hidden border">
-        <Image
-          src={hospital.hero}
-          alt={hospital.name}
-          width={1200}
-          height={400}
-          className="object-cover w-full h-64"
-        />
+      {/* Hero（画像カラムが無いので色ブロック＋名前を表示） */}
+      <section className="rounded-xl overflow-hidden border bg-gray-50">
+        <div className="w-full h-48 relative">
+          {/* 任意で差し替え可 */}
+          <Image src="/images/hero-hospital.jpg" alt={row.name} fill className="object-cover opacity-70" />
+        </div>
         <div className="flex items-center justify-between px-6 py-4 bg-white border-t">
           <div className="flex items-center gap-4">
-            <Image src={hospital.logo} alt="logo" width={60} height={60} className="rounded-md border" />
+            <Image src="/images/hospital-logo.png" alt="logo" width={56} height={56} className="rounded-md border" />
             <div>
-              <h1 className="text-xl font-semibold text-primary-700">{hospital.name}</h1>
+              <h1 className="text-xl font-semibold text-primary-700">{row.name}</h1>
               <p className="text-sm text-text-muted">
-                {hospital.meta.prefecture}・{hospital.meta.area}
+                {row.prefecture ?? "—"}・{row.city ?? "—"}
               </p>
             </div>
           </div>
 
-          {/* お気に入りトグル */}
-          <button
-            onClick={() => toggleFavorite(favPayload)}
-            className="flex items-center gap-2 px-3 py-2 border rounded"
-            aria-label={active ? "お気に入り解除" : "お気に入り追加"}
-          >
-            <Heart
-              className="w-5 h-5"
-              fill={active ? "#ef4444" : "transparent"}
-              color={active ? "#ef4444" : "#bbb"}
-            />
-            <span>{active ? "お気に入り解除" : "お気に入りに追加"}</span>
-          </button>
+          <FavButton hospitalId={row.id} />
         </div>
       </section>
 
-      {/* 病院概要 */}
+      {/* 概要 */}
       <section className="card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-primary-700">病院概要</h2>
         <div className="grid md:grid-cols-2 gap-2 text-sm">
-          <p>
-            <span className="text-text-muted">所在地：</span>
-            {hospital.overview.address}
-          </p>
-          <p>
-            <span className="text-text-muted">指導医数：</span>
-            {hospital.overview.doctors}名
-          </p>
-          <p>
-            <span className="text-text-muted">救急区分：</span>
-            {hospital.meta.emergency}
-          </p>
-          <p>
-            <span className="text-text-muted">初期研修医：</span>
-            {hospital.overview.interns}
-          </p>
+          <p><span className="text-text-muted">所在地：</span>{row.address ?? "—"}</p>
+          <p><span className="text-text-muted">救急区分：</span>{row.facility_type ?? "—"}</p>
+          <p><span className="text-text-muted">病床数：</span>{row.bed_count ?? "—"}</p>
+          <p><span className="text-text-muted">初期研修医：</span>{row.residents_first_year ?? "—"}</p>
         </div>
       </section>
 
-      {/* PR */}
-      <section className="card p-6 space-y-2">
-        <h2 className="text-lg font-semibold text-primary-700">PRポイント</h2>
-        <h3 className="font-semibold text-primary-600">{hospital.pr.title}</h3>
-        <p className="text-sm text-text leading-relaxed whitespace-pre-wrap">{hospital.pr.body}</p>
-      </section>
-
-      {/* 求人 */}
+      {/* 特色（簡易） */}
       <section className="card p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-primary-700">求人情報</h2>
+        <h2 className="text-lg font-semibold text-primary-700">処遇・特色（抜粋）</h2>
         <div className="grid md:grid-cols-2 gap-2 text-sm">
-          <p>
-            <span className="text-text-muted">給与（1年次）：</span>
-            {hospital.job.salary1}
+          <p><span className="text-text-muted">年収：</span>
+            {row.salary_1st_year_min ? `${row.salary_1st_year_min}万〜${row.salary_1st_year_max ?? "—"}万` : "—"}
           </p>
-          <p>
-            <span className="text-text-muted">給与（2年次）：</span>
-            {hospital.job.salary2}
-          </p>
-          <p>
-            <span className="text-text-muted">当直回数：</span>
-            {hospital.meta.duty}
-          </p>
-          <p>
-            <span className="text-text-muted">福利厚生：</span>
-            {hospital.job.benefits}
-          </p>
+          <p><span className="text-text-muted">当直：</span>{row.duty_frequency ?? "—"}</p>
+          <p><span className="text-text-muted">賞与：</span>{row.bonus ?? "—"}</p>
+          <p><span className="text-text-muted">住宅手当：</span>{row.housing_allowance ? "あり" : "—"}</p>
         </div>
+        {row.website_url && (
+          <p className="text-sm">
+            公式サイト：
+            <a href={row.website_url} target="_blank" className="underline text-primary-600">
+              {row.website_url}
+            </a>
+          </p>
+        )}
       </section>
 
-      {/* 資料 */}
-      <section className="card p-6 space-y-3">
-        <h2 className="text-lg font-semibold text-primary-700">資料ダウンロード</h2>
-        <ul className="text-sm space-y-2">
-          {hospital.materials.map((m, i) => (
-            <li key={i} className="flex items-center justify-between border-b pb-2">
-              <span>{m.name}</span>
-              <span className="text-xs text-text-muted">{m.updated}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {/* アクション */}
+      {/* CTA */}
       <div className="flex gap-3 justify-end">
-        <Link
-          href="/student/saved"
-          className="border border-primary-500 text-primary-600 rounded-md px-4 py-2 hover:bg-primary-50 transition"
-        >
+        <Link href="/student/saved" className="border border-primary-500 text-primary-600 rounded-md px-4 py-2 hover:bg-primary-50 transition">
           検討リストを開く
         </Link>
-
-        {/* ★ 申込画面へ遷移（病院IDをクエリで渡す） */}
-        <Link
-          href={`/student/apply?hospitalId=${encodeURIComponent(idParam)}`}
-          className="bg-primary-500 text-white rounded-md px-4 py-2 hover:bg-primary-600 transition"
-        >
+        <Link href={`/student/apply?hospitalId=${encodeURIComponent(row.id)}`} className="bg-primary-500 text-white rounded-md px-4 py-2 hover:bg-primary-600 transition">
           初回面談を申し込む
         </Link>
       </div>
@@ -155,37 +129,50 @@ export default function StudentHospitalDetail() {
   );
 }
 
-function getHospitalById(id: string) {
-  return {
-    id,
-    name: "東京中央医療センター",
-    hero: "/images/hero-hospital.jpg",
-    logo: "/images/hospital-logo.png",
-    meta: {
-      prefecture: "東京都",
-      area: "複合",
-      salary: "520〜600万円",
-      emergency: "三次救急",
-      residents: "10〜20人",
-      beds: "500床〜",
-      duty: "3〜4回",
-      tags: ["二次マッチ：残りわずか", "見学交通費", "家賃補助"],
-    },
-    overview: { address: "東京都新宿区成城1-2-3", doctors: 36, interns: "10〜20名" },
-    pr: {
-      title: "手技教育が充実。海外研修もサポート。",
-      body:
-        "都心の急性期病院。手技経験が豊富で、初期研修医への教育体制が整っています。\n" +
-        "海外研修プログラムも用意しています。",
-    },
-    job: {
-      salary1: "月給50万円（年収600万円）",
-      salary2: "月給55万円（年収660万円）",
-      benefits: "残業手当、家賃補助、交通費支給",
-    },
-    materials: [
-      { name: "募集要項.pdf", updated: "2025/10/15" },
-      { name: "カリキュラム.pdf", updated: "2025/10/10" },
-    ],
+/* --- 検討トグル（DB 永続） --- */
+function FavButton({ hospitalId }: { hospitalId: string }) {
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
+  const [active, setActive] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("student_favorites")
+        .select("hospital_id")
+        .eq("student_id", user.id)
+        .eq("hospital_id", hospitalId)
+        .maybeSingle();
+      setActive(!!data);
+    })();
+  }, [hospitalId, supabase]);
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      if (active) {
+        await supabase.from("student_favorites").delete().eq("student_id", user.id).eq("hospital_id", hospitalId);
+        setActive(false);
+      } else {
+        await supabase.from("student_favorites").upsert({ student_id: user.id, hospital_id: hospitalId });
+        setActive(true);
+      }
+    } finally {
+      setBusy(false);
+    }
   };
+
+  return (
+    <button
+      onClick={toggle}
+      className={`px-3 py-1 text-sm rounded border ${active ? "bg-red-50 text-red-600 border-red-300" : ""}`}
+    >
+      {active ? "★ 検討中" : "☆ 検討に追加"}
+    </button>
+  );
 }

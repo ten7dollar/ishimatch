@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 /* ---------------------------
    マスタ定義（将来はDBやAPIへ）
@@ -25,99 +26,63 @@ const EMERGENCY = ["二次救急", "三次救急", "どちらでも良い"] as c
 const INTERNS = ["〜5人", "6〜10人", "11〜20人", "21人〜", "問わない"] as const;
 const BEDS = ["〜100床", "100〜300床", "300〜499床", "500床〜", "問わない"] as const;
 const NIGHTS = ["〜2回", "3〜4回", "5回〜", "問わない"] as const;
-const TRAVEL = ["あり", "なし", "問わない"] as const;
-const WELFARE = ["残業手当", "家賃手当", "当直手当", "問わない"] as const;
+const TRAVEL = ["あり", "なし", "問わない"] as const; // ← 今回は hospitals に travel カラムはないので UI では使わず将来用
+const WELFARE = ["残業手当", "家賃手当", "当直手当", "問わない"] as const; // 将来の hospitals 拡張用
 
 /* ---------------------------
-   型
+   型（Supabase: public.hospitals）
 --------------------------- */
-type StartYear = (typeof START_YEARS)[number];
 type AndOr = "AND" | "OR";
 
-type Hospital = {
+type HospitalRow = {
   id: string;
+  hospital_id: string;
   name: string;
-  prefecture: string;               // 都道府県
-  startYears: StartYear[];          // 受入開始年度
-  salaryBand: (typeof SALARY_BANDS)[number];
-  bonus: (typeof BONUS)[number];
-  emergency: (typeof EMERGENCY)[number];
-  interns: (typeof INTERNS)[number];
-  beds: (typeof BEDS)[number];
-  nights: (typeof NIGHTS)[number];
-  travel: (typeof TRAVEL)[number];
-  welfare: (typeof WELFARE)[number][]; // 複数選択（問わない含まず）
+  name_kana: string | null;
+  prefecture: string | null;
+  region: string | null;
+  city: string | null;
+  address: string | null;
+  website_url: string | null;
+  facility_type: "二次救急" | "三次救急" | "どちらでも" | "不明";
+  bed_count: number | null;
+  residents_first_year: number | null;
+  duty_frequency: "~2回" | "3~4回" | "5回以上" | "特になし";
+  salary_1st_year_min: number | null;
+  salary_1st_year_max: number | null;
+  bonus: string | null;
+  housing_allowance: boolean | null;
+  overtime_allowance: boolean | null;
+  commute_allowance: boolean | null;
 };
-
-/* ---------------------------
-   ダミーデータ（将来差し替え）
---------------------------- */
-const DUMMY_HOSPITALS: Hospital[] = [
-  {
-    id: "tokyo-chuo",
-    name: "東京中央医療センター",
-    prefecture: "東京都",
-    startYears: [2026, 2027],
-    salaryBand: "400〜599万円",
-    bonus: "あり",
-    emergency: "三次救急",
-    interns: "11〜20人",
-    beds: "500床〜",
-    nights: "3〜4回",
-    travel: "あり",
-    welfare: ["残業手当", "家賃手当"],
-  },
-  {
-    id: "shinshu",
-    name: "信州地域総合病院",
-    prefecture: "長野県",
-    startYears: [2026, 2028],
-    salaryBand: "600〜799万円",
-    bonus: "あり",
-    emergency: "二次救急",
-    interns: "6〜10人",
-    beds: "300〜499床",
-    nights: "〜2回",
-    travel: "あり",
-    welfare: ["残業手当", "当直手当"],
-  },
-  {
-    id: "osaka-daigaku",
-    name: "大阪大学医学部附属病院",
-    prefecture: "大阪府",
-    startYears: [2027, 2028],
-    salaryBand: "〜400万円",
-    bonus: "なし",
-    emergency: "三次救急",
-    interns: "21人〜",
-    beds: "500床〜",
-    nights: "5回〜",
-    travel: "なし",
-    welfare: ["家賃手当", "当直手当"],
-  },
-];
 
 /* ---------------------------
    ページ
 --------------------------- */
 export default function StudentHospitalSearchPage() {
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
+  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<HospitalRow[]>([]);
+  const [count, setCount] = useState(0);
+
   // 病院名検索（部分一致）
   const [nameQuery, setNameQuery] = useState("");
+  const nameDebounce = useDebouncedValue(nameQuery, 300);
 
   // AND/OR モード
   const [mode, setMode] = useState<AndOr>("AND");
 
   // フィルタの状態
   const [prefSet, setPrefSet] = useState<Set<string>>(new Set()); // 47都道府県（複数）
-  const [startYears, setStartYears] = useState<Set<StartYear>>(new Set());
+  const [startYears, setStartYears] = useState<Set<number>>(new Set()); // 将来: hospitalsに start_years を追加したら使う
   const [salary, setSalary] = useState<(typeof SALARY_BANDS)[number]>("問わない");
   const [bonus, setBonus] = useState<(typeof BONUS)[number]>("問わない");
   const [emergency, setEmergency] = useState<(typeof EMERGENCY)[number]>("どちらでも良い");
   const [interns, setInterns] = useState<(typeof INTERNS)[number]>("問わない");
   const [beds, setBeds] = useState<(typeof BEDS)[number]>("問わない");
   const [nights, setNights] = useState<(typeof NIGHTS)[number]>("問わない");
-  const [travel, setTravel] = useState<(typeof TRAVEL)[number]>("問わない");
-  const [welfare, setWelfare] = useState<Set<(typeof WELFARE)[number]>>(new Set());
+  // const [travel, setTravel] = useState<(typeof TRAVEL)[number]>("問わない"); // hospitalsに列がないためUIだけ将来対応
+  // const [welfare, setWelfare] = useState<Set<(typeof WELFARE)[number]>>(new Set());
 
   // 選択トグル（Set 用）
   const toggleSet = <T,>(set: Set<T>, v: T) => {
@@ -126,7 +91,6 @@ export default function StudentHospitalSearchPage() {
     else next.add(v);
     return next;
   };
-
   // 地方一括
   const selectRegion = (r: { name: string; prefs: string[] }) => setPrefSet(prev => {
     const next = new Set(prev); r.prefs.forEach(p => next.add(p)); return next;
@@ -135,90 +99,125 @@ export default function StudentHospitalSearchPage() {
     const next = new Set(prev); r.prefs.forEach(p => next.delete(p)); return next;
   });
 
-  // 検索ロジック（AND/OR 切替 & 「問わない」の意味）
-  const results = useMemo(() => {
-    const query = nameQuery.trim();
+  /* ---------------------------
+     Supabase 検索
+  --------------------------- */
+  const load = async () => {
+    setLoading(true);
+    try {
+      let q = supabase
+        .from("hospitals")
+        .select("*", { count: "exact" })
+        .limit(200); // 必要ならページングへ
 
-    // 1) グループごとの「一致 or 未指定(undefined)」を出す helper
-    //    AND: undefined は評価から除外（＝条件なし）
-    //    OR : undefined は false 扱い（どれか1つでも true ならOK）
-    const group = {
-      name(h: Hospital): boolean | undefined {
-        if (!query) return undefined;
-        return h.name.toLowerCase().includes(query.toLowerCase());
-      },
-      prefecture(h: Hospital): boolean | undefined {
-        if (prefSet.size === 0) return undefined;
-        return prefSet.has(h.prefecture);
-      },
-      startYear(h: Hospital): boolean | undefined {
-        if (startYears.size === 0) return undefined;
-        return Array.from(startYears).some(y => h.startYears.includes(y));
-      },
-      salary(h: Hospital): boolean | undefined {
-        // 「問わない」
-        if (salary === "問わない") return mode === "OR" ? true : undefined;
-        return h.salaryBand === salary;
-      },
-      bonus(h: Hospital): boolean | undefined {
-        if (bonus === "問わない") return mode === "OR" ? true : undefined;
-        return h.bonus === bonus;
-      },
-      emergency(h: Hospital): boolean | undefined {
-        if (emergency === "どちらでも良い") return mode === "OR" ? true : undefined;
-        return h.emergency === emergency;
-      },
-      interns(h: Hospital): boolean | undefined {
-        if (interns === "問わない") return mode === "OR" ? true : undefined;
-        return h.interns === interns;
-      },
-      beds(h: Hospital): boolean | undefined {
-        if (beds === "問わない") return mode === "OR" ? true : undefined;
-        return h.beds === beds;
-      },
-      nights(h: Hospital): boolean | undefined {
-        if (nights === "問わない") return mode === "OR" ? true : undefined;
-        return h.nights === nights;
-      },
-      travel(h: Hospital): boolean | undefined {
-        if (travel === "問わない") return mode === "OR" ? true : undefined;
-        return h.travel === travel;
-      },
-      welfare(h: Hospital): boolean | undefined {
-        if (welfare.size === 0) return undefined;      // 未選択
-        if (welfare.has("問わない" as any))            // 「問わない」
-          return mode === "OR" ? true : undefined;
-        // 複数選択：病院の福利厚生に選択のどれかが含まれる
-        return Array.from(welfare).some(w => h.welfare.includes(w));
-      },
-    };
-
-    // 2) 病院ごとに判定
-    return DUMMY_HOSPITALS.filter((h) => {
-      const checks = [
-        group.name(h),
-        group.prefecture(h),
-        group.startYear(h),
-        group.salary(h),
-        group.bonus(h),
-        group.emergency(h),
-        group.interns(h),
-        group.beds(h),
-        group.nights(h),
-        group.travel(h),
-        group.welfare(h),
-      ];
+      // 病院名：部分一致（AND/ORに関係なく常にANDで足す）
+      const qStr = nameDebounce.trim();
+      if (qStr.length > 0) {
+        const escaped = escapeIlike(qStr);
+        q = q.ilike("name", `%${escaped}%`);
+      }
 
       if (mode === "AND") {
-        // undefined（条件なし）は除外し、true がすべて
-        const targets = checks.filter(v => v !== undefined) as boolean[];
-        return targets.length === 0 ? true : targets.every(Boolean);
+        // within-field は OR（.in）、 across-field は AND
+        if (prefSet.size > 0) q = q.in("prefecture", Array.from(prefSet));
+
+        if (emergency !== "どちらでも良い") q = q.eq("facility_type", emergency as any);
+
+        switch (nights) {
+          case "〜2回": q = q.eq("duty_frequency", "~2回"); break;
+          case "3〜4回": q = q.eq("duty_frequency", "3~4回"); break;
+          case "5回〜": q = q.eq("duty_frequency", "5回以上"); break;
+        }
+
+        switch (salary) {
+          case "〜400万円": q = q.lte("salary_1st_year_min", 400); break;
+          case "400〜599万円": q = q.gte("salary_1st_year_min", 400).lte("salary_1st_year_min", 599); break;
+          case "600〜799万円": q = q.gte("salary_1st_year_min", 600).lte("salary_1st_year_min", 799); break;
+          case "800万円以上": q = q.gte("salary_1st_year_min", 800); break;
+        }
+
+        switch (interns) {
+          case "〜5人": q = q.lte("residents_first_year", 5); break;
+          case "6〜10人": q = q.gte("residents_first_year", 6).lte("residents_first_year", 10); break;
+          case "11〜20人": q = q.gte("residents_first_year", 11).lte("residents_first_year", 20); break;
+          case "21人〜": q = q.gte("residents_first_year", 21); break;
+        }
+
+        switch (beds) {
+          case "〜100床": q = q.lte("bed_count", 100); break;
+          case "100〜300床": q = q.gte("bed_count", 100).lte("bed_count", 300); break;
+          case "300〜499床": q = q.gte("bed_count", 300).lte("bed_count", 499); break;
+          case "500床〜": q = q.gte("bed_count", 500); break;
+        }
+
+        if (bonus !== "問わない") q = q.eq("bonus", bonus);
+        // 福利厚生系（hospitals設計に合わせて）
+        // if (housing !== "問わない") q = q.eq("housing_allowance", housing === "あり");
+        // if (commute !== "問わない") q = q.eq("commute_allowance", commute === "あり");
       } else {
-        // OR：undefined は false 扱い。どれか1つtrue ならOK
-        return checks.some(Boolean);
+        // ORモード：どれか1つでも当てはまればOK
+        const orParts: string[] = [];
+
+        if (prefSet.size > 0) orParts.push(`prefecture.in.${toInList(Array.from(prefSet))}`);
+        if (emergency !== "どちらでも良い") orParts.push(`facility_type.eq.${emergency}`);
+
+        switch (nights) {
+          case "〜2回": orParts.push(`duty_frequency.eq.~2回`); break;
+          case "3〜4回": orParts.push(`duty_frequency.eq.3~4回`); break;
+          case "5回〜": orParts.push(`duty_frequency.eq.5回以上`); break;
+        }
+
+        // salary band を and(...) で1まとまりに（PostgREST）
+        switch (salary) {
+          case "〜400万円": orParts.push(`salary_1st_year_min.lte.400`); break;
+          case "400〜599万円": orParts.push(`and(salary_1st_year_min.gte.400,salary_1st_year_min.lte.599)`); break;
+          case "600〜799万円": orParts.push(`and(salary_1st_year_min.gte.600,salary_1st_year_min.lte.799)`); break;
+          case "800万円以上": orParts.push(`salary_1st_year_min.gte.800`); break;
+        }
+
+        switch (interns) {
+          case "〜5人": orParts.push(`residents_first_year.lte.5`); break;
+          case "6〜10人": orParts.push(`and(residents_first_year.gte.6,residents_first_year.lte.10)`); break;
+          case "11〜20人": orParts.push(`and(residents_first_year.gte.11,residents_first_year.lte.20)`); break;
+          case "21人〜": orParts.push(`residents_first_year.gte.21`); break;
+        }
+
+        switch (beds) {
+          case "〜100床": orParts.push(`bed_count.lte.100`); break;
+          case "100〜300床": orParts.push(`and(bed_count.gte.100,bed_count.lte.300)`); break;
+          case "300〜499床": orParts.push(`and(bed_count.gte.300,bed_count.lte.499)`); break;
+          case "500床〜": orParts.push(`bed_count.gte.500`); break;
+        }
+
+        if (bonus !== "問わない") orParts.push(`bonus.eq.${bonus}`);
+
+        const orStr = orParts.join(",");
+        if (orStr) q = q.or(orStr);
       }
-    });
-  }, [nameQuery, mode, prefSet, startYears, salary, bonus, emergency, interns, beds, nights, travel, welfare]);
+
+      // 取得＆件数
+      const { data, error, count: c } = await q;
+      if (error) throw error;
+      setRows((data ?? []) as HospitalRow[]);
+      setCount(c ?? 0);
+    } catch (e: any) {
+      console.error("load error", e?.message);
+      alert(`検索に失敗しました：${e?.message ?? "unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]); // 初回・モード切替でロード
+
+  // 病院名はデバウンスで検索
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nameDebounce]);
 
   const clearAll = () => {
     setNameQuery("");
@@ -231,8 +230,9 @@ export default function StudentHospitalSearchPage() {
     setInterns("問わない");
     setBeds("問わない");
     setNights("問わない");
-    setTravel("問わない");
-    setWelfare(new Set());
+    // setTravel("問わない");
+    // setWelfare(new Set());
+    load();
   };
 
   return (
@@ -240,7 +240,7 @@ export default function StudentHospitalSearchPage() {
       {/* タイトル */}
       <div className="space-y-1">
         <h1 className="text-xl md:text-2xl font-bold">病院を探す</h1>
-        <p className="text-sm text-gray-600">希望条件を指定して病院を絞り込みます</p>
+        <p className="text-sm text-gray-600">病院名の部分一致 + 条件検索（AND / OR）</p>
       </div>
 
       {/* 病院名検索（部分一致） */}
@@ -250,7 +250,7 @@ export default function StudentHospitalSearchPage() {
           value={nameQuery}
           onChange={(e)=>setNameQuery(e.target.value)}
           className="w-full border rounded px-3 py-2 mt-1"
-          placeholder="病院名で検索（部分一致）"
+          placeholder="病院名で検索（部分一致：例「赤十字」「順天堂」など）"
         />
       </div>
 
@@ -285,10 +285,10 @@ export default function StudentHospitalSearchPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">{r.name}</span>
                     <div className="flex gap-2">
-                      <button onClick={()=>selectRegion(r)} className="text-xs px-2 py-0.5 border rounded">
+                      <button type="button" onClick={()=>selectRegion(r)} className="text-xs px-2 py-0.5 border rounded">
                         全選択
                       </button>
-                      <button onClick={()=>clearRegion(r)} className="text-xs px-2 py-0.5 border rounded">
+                      <button type="button" onClick={()=>clearRegion(r)} className="text-xs px-2 py-0.5 border rounded">
                         解除
                       </button>
                     </div>
@@ -311,8 +311,8 @@ export default function StudentHospitalSearchPage() {
             </div>
           </details>
 
-          {/* 研修開始年度 */}
-          <details open>
+          {/* 研修開始年度（将来用） */}
+          <details>
             <summary className="cursor-pointer text-sm font-semibold text-primary-700 mb-2 select-none">
               研修開始年度
             </summary>
@@ -328,6 +328,7 @@ export default function StudentHospitalSearchPage() {
                 </label>
               ))}
             </div>
+            <p className="text-[11px] text-gray-500 mt-1">※現状は表示に反映していません（DBに列追加後に有効化）</p>
           </details>
 
           {/* ラジオ系（問わないあり） */}
@@ -342,60 +343,40 @@ export default function StudentHospitalSearchPage() {
           <RadioGroup title="初期研修医の人数" options={INTERNS} value={interns} onChange={setInterns} />
           <RadioGroup title="病床数" options={BEDS} value={beds} onChange={setBeds} />
           <RadioGroup title="当直回数" options={NIGHTS} value={nights} onChange={setNights} />
-          <RadioGroup title="見学時の交通費補助" options={TRAVEL} value={travel} onChange={setTravel} />
-
-          {/* 福利厚生（複数） */}
-          <details>
-            <summary className="cursor-pointer text-sm font-semibold text-primary-700 mb-2 select-none">
-              福利厚生
-            </summary>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {WELFARE.map(w => (
-                <label key={w} className="flex items-center gap-1 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={welfare.has(w)}
-                    onChange={()=>setWelfare(prev => toggleSet(prev, w))}
-                  />
-                  {w}
-                </label>
-              ))}
-            </div>
-          </details>
+          {/* <RadioGroup title="見学時の交通費補助" options={TRAVEL} value={travel} onChange={setTravel} /> */}
 
           <div className="pt-2 flex flex-col gap-2">
-            <button className="btn-primary text-sm">検索</button>
-            <button onClick={clearAll} className="border rounded py-2 text-sm hover:bg-gray-50">
+            <button type="button" onClick={load} className="btn-primary text-sm">検索</button>
+            <button type="button" onClick={clearAll} className="border rounded py-2 text-sm hover:bg-gray-50">
               条件をクリア
             </button>
           </div>
         </aside>
 
-        {/* 結果リスト（モバイルファーストのスマートなカード） */}
+        {/* 結果リスト */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">{results.length}件の病院が見つかりました</p>
-            <select className="border rounded px-3 py-1 text-sm">
+            <p className="text-sm text-gray-600">{loading ? "検索中…" : `${count}件の病院が見つかりました`}</p>
+            {/* 並び順などは必要に応じて */}
+            <select className="border rounded px-3 py-1 text-sm" onChange={()=>{ /* TODO */ }}>
               <option>並び順：新着順</option>
             </select>
           </div>
 
-          {results.map(h => (
+          {rows.map(h => (
             <div key={h.id} className="rounded-xl border bg-white p-4 hover:shadow-sm transition">
-              {/* 病院名 ＋ タグ */}
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-base md:text-lg font-semibold text-primary-700">{h.name}</h3>
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px] md:text-xs">
-                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.prefecture}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.emergency}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.prefecture ?? "—"}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.facility_type ?? "—"}</span>
                     {h.bonus === "あり" && (
                       <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">賞与あり</span>
                     )}
                   </div>
                 </div>
 
-                {/* 右側：スマホでも押しやすいCTA */}
                 <div className="flex gap-2 shrink-0">
                   <Link
                     href={`/student/apply?hospitalId=${encodeURIComponent(h.id)}`}
@@ -406,24 +387,23 @@ export default function StudentHospitalSearchPage() {
                 </div>
               </div>
 
-              {/* 主要スペック（スリム） */}
               <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-2 text-xs md:text-sm text-gray-700">
-                <div><span className="text-gray-500">年収：</span>{h.salaryBand}</div>
-                <div><span className="text-gray-500">研修医数：</span>{h.interns}</div>
-                <div><span className="text-gray-500">病床数：</span>{h.beds}</div>
-                <div><span className="text-gray-500">当直：</span>{h.nights}</div>
+                <div><span className="text-gray-500">年収：</span>{h.salary_1st_year_min ? `${h.salary_1st_year_min}万〜${h.salary_1st_year_max ?? "—"}万` : "—"}</div>
+                <div><span className="text-gray-500">研修医数：</span>{h.residents_first_year ?? "—"}</div>
+                <div><span className="text-gray-500">病床数：</span>{h.bed_count ?? "—"}</div>
+                <div><span className="text-gray-500">当直：</span>{h.duty_frequency ?? "—"}</div>
               </div>
 
-              {/* 下部ボタン */}
-              <div className="mt-3 flex justify-end">
+              <div className="mt-3 flex justify-end gap-2">
                 <Link href={`/student/hospitals/${encodeURIComponent(h.id)}`} className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50">
                   詳細を見る
                 </Link>
+                <FavButton hospitalId={h.id} />
               </div>
             </div>
           ))}
 
-          {results.length === 0 && (
+          {!loading && rows.length === 0 && (
             <div className="p-10 text-center text-gray-500 border rounded bg-gray-50">
               条件に合致する病院が見つかりませんでした。条件を緩めて再検索してください。
             </div>
@@ -435,7 +415,7 @@ export default function StudentHospitalSearchPage() {
 }
 
 /* ---------------------------
-   小さな部品
+   小さな部品/ユーティリティ
 --------------------------- */
 function RadioGroup<T extends string>({
   title, options, value, onChange,
@@ -454,5 +434,89 @@ function RadioGroup<T extends string>({
         ))}
       </div>
     </details>
+  );
+}
+
+/** ilike のワイルドカードをエスケープ */
+function escapeIlike(s: string) {
+  return s.replace(/[%_]/g, m => "\\" + m);
+}
+
+/** in句用リスト： ( "A","B" ) 形式 */
+function toInList(arr: string[]) {
+  return `(${arr.map(v => `"${v}"`).join(",")})`;
+}
+/** デバウンス（@ts-expect-error 不要の型安全版） */
+function useDebouncedValue<T>(value: T, ms: number) {
+  const [v, setV] = useState(value);
+
+  // setTimeout の返り値に依存しない、型安全な書き方
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+    }
+    timer.current = setTimeout(() => setV(value), ms);
+
+    return () => {
+      if (timer.current) {
+        clearTimeout(timer.current);
+      }
+    };
+  }, [value, ms]);
+
+  return v;
+}
+
+/** 検討リスト（DB）トグルボタン */
+function FavButton({ hospitalId }: { hospitalId: string }) {
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
+  const [active, setActive] = useState<boolean>(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase
+        .from("student_favorites")
+        .select("hospital_id")
+        .eq("student_id", user.id)
+        .eq("hospital_id", hospitalId)
+        .maybeSingle();
+      setActive(!!data);
+    })();
+  }, [hospitalId, supabase]);
+
+  const toggle = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      if (active) {
+        await supabase
+          .from("student_favorites")
+          .delete()
+          .eq("student_id", user.id)
+          .eq("hospital_id", hospitalId);
+        setActive(false);
+      } else {
+        await supabase
+          .from("student_favorites")
+          .upsert({ student_id: user.id, hospital_id: hospitalId });
+        setActive(true);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button onClick={toggle}
+      className={`px-3 py-1 text-sm rounded border ${active ? "bg-red-50 text-red-600 border-red-300" : ""}`}>
+      {active ? "★ 検討中" : "☆ 検討に追加"}
+    </button>
   );
 }

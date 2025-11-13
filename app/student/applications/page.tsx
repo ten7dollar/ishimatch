@@ -4,13 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-/** 学生側 応募履歴 localStorage キー（既存のMVPデータ） */
-const STUDENT_APPS_KEY = "ishimatch:student:applications";
-
-/* ===== 型定義（UI用） ===== */
+/** タブ（既存UIの想定に合わせる） */
 type ApplicationStatus = "選考中" | "面談" | "内定" | "否決" | "取消";
-type Source = "scout" | "self"; // スカウト経由 or 自主応募
+type Source = "scout" | "self";
 
+/** 画面に表示する最終形 */
 type Application = {
   id: string;
   hospitalId: string;
@@ -22,150 +20,96 @@ type Application = {
   tags?: string[];
 };
 
-/** タブ（既存UIが「すべて / 選考中 / 面談 / 内定 / 否決 / 取消」の想定） */
 const TABS: Array<"すべて" | ApplicationStatus> = [
   "すべて", "選考中", "面談", "内定", "否決", "取消",
 ];
 
-/* ===== 「スカウト経由」バッジ ===== */
-function SourceBadge({ source }: { source: Source }) {
-  if (source === "scout") {
-    return (
-      <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700">
-        スカウト経由
-      </span>
-    );
-  }
-  return (
-    <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
-      自主応募
-    </span>
-  );
-}
+/** ★ ここはあなたの環境の FK 名に合わせてください */
+const HOSPITAL_FK = "hospital_applications_hospital_id_fkey";
 
-/* ===================================================================
-   ページ
-=================================================================== */
 export default function ApplicationsPage() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
 
-  // 既存UI：タブとキーワード検索
+  // UI 状態
   const [tab, setTab] = useState<(typeof TABS)[number]>("すべて");
   const [q, setQ] = useState("");
 
-  // Supabase + localStorage をマージした「真実の配列」
-  const [serverApps, setServerApps] = useState<Application[]>([]);
-  const [localApps, setLocalApps] = useState<Application[]>([]);
+  // 取得データ
+  const [rows, setRows] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** Supabase 側（永続）を取得 */
-  const loadFromServer = async () => {
+  /** DBから応募履歴を取得（ログアウト後も DB に残る） */
+  const load = async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        setServerApps([]);
+        setRows([]);
         setLoading(false);
         return;
       }
 
-      // hospitals.name を取得（FK が無い環境では null になるので guarded）
+      // hospitals を JOIN（外部キー名に注意）
       const { data, error } = await supabase
         .from("hospital_applications")
         .select(
-          "id, hospital_id, student_id, status, source, applied_at, hospitals ( id, name )"
+          `
+           id,
+           hospital_id,
+           status,
+           source,
+           note,
+           tags,
+           created_at,
+           hospitals:${HOSPITAL_FK} ( id, name )
+          `
         )
         .eq("student_id", user.id)
-        .order("applied_at", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (error) throw error;
 
       const normalized: Application[] = (data ?? []).map((r: any) => ({
-        id: String(r.id),
-        hospitalId: String(r.hospital_id),
-        hospitalName:
-          (r.hospitals && r.hospitals.name) ? String(r.hospitals.name) : "(名称未設定)",
-        appliedAt: new Date(r.applied_at ?? Date.now()).toISOString(),
-        status: toStatus(r.status),
-        source: toSource(r.source),
-        note: "",
-        tags: [],
+        id          : String(r.id),
+        hospitalId  : String(r.hospital_id),
+        hospitalName: r.hospitals?.name ?? "(名称未設定)",
+        appliedAt   : new Date(r.created_at ?? Date.now()).toISOString(),
+        status      : (r.status || "選考中") as ApplicationStatus,
+        source      : (r.source || "self") as Source,
+        note        : r.note ?? "",
+        tags        : Array.isArray(r.tags) ? r.tags : [],
       }));
 
-      setServerApps(normalized);
+      setRows(normalized);
     } catch (e: any) {
-      console.error("[applications] server load error:", e.message ?? e);
-      setServerApps([]);
+      console.error("[applications] load error", e?.message);
+      alert(`応募履歴の取得に失敗しました：${e?.message ?? "unknown"}`);
     } finally {
       setLoading(false);
     }
   };
 
-  /** localStorage 側（MVP一時保存）を取得 */
-  const loadFromLocal = () => {
-    try {
-      const raw = localStorage.getItem(STUDENT_APPS_KEY);
-      if (!raw) {
-        setLocalApps([]);
-        return;
-      }
-      const arr = JSON.parse(raw) as any[];
-      const normalized: Application[] = arr.map((a) => ({
-        id: String(a.id),
-        hospitalId: String(a.hospitalId),
-        hospitalName: String(a.hospitalName ?? "(名称未設定)"),
-        appliedAt: new Date(a.appliedAt ?? Date.now()).toISOString(),
-        status: toStatus(a.status),
-        source: toSource(a.source),
-        note: a.note || "",
-        tags: a.tags || [],
-      }));
-      setLocalApps(normalized);
-    } catch {
-      setLocalApps([]);
-    }
-  };
+  useEffect(() => { load(); }, []); // 初回のみ
 
-  /** 初回とセッション変化で再取得 */
-  useEffect(() => {
-    loadFromLocal();
-    loadFromServer();
-    const { data: sub } = supabase.auth.onAuthStateChange(() => {
-      loadFromServer();
-    });
-    return () => sub.subscription?.unsubscribe?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** 表示用：サーバー優先でマージ → フィルタ */
+  /** タブ・検索フィルタ */
   const list = useMemo(() => {
-    const map = new Map<string, Application>();
-    serverApps.forEach((a) => map.set(a.id, a)); // サーバー優先
-    localApps.forEach((a) => { if (!map.has(a.id)) map.set(a.id, a); });
+    let arr = [...rows];
 
-    let arr = Array.from(map.values());
-    // キーワード検索（病院名）
     if (q.trim()) {
       const low = q.trim().toLowerCase();
       arr = arr.filter((a) => a.hospitalName.toLowerCase().includes(low));
     }
-    // タブ絞り込み
     if (tab !== "すべて") {
       arr = arr.filter((a) => a.status === tab);
     }
-    // 日付降順
-    arr.sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
     return arr;
-  }, [serverApps, localApps, tab, q]);
+  }, [rows, q, tab]);
 
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* タイトル */}
+      {/* ヘッダー */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">応募履歴</h1>
-        </div>
-        {/* 検索 */}
+        <h1 className="text-2xl font-bold">応募履歴</h1>
         <div className="flex items-center gap-2">
           <input
             value={q}
@@ -174,11 +118,11 @@ export default function ApplicationsPage() {
             className="border rounded px-3 py-1.5 text-sm"
           />
           <button
-            onClick={loadFromServer}
+            onClick={load}
             className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
-            title="再読み込み"
+            title="最新の状態に更新"
           >
-            更新
+            再読込み
           </button>
         </div>
       </div>
@@ -204,7 +148,7 @@ export default function ApplicationsPage() {
       {/* リスト */}
       {loading ? (
         <div className="p-8 border rounded bg-gray-50 text-center text-gray-500">
-          読み込み中…
+          取得中…
         </div>
       ) : list.length === 0 ? (
         <div className="p-8 border rounded bg-gray-50 text-center text-gray-500">
@@ -250,11 +194,8 @@ export default function ApplicationsPage() {
                 >
                   病院詳細
                 </Link>
-                {/* 将来メッセージスレッドにする場合 */}
-                <Link
-                  href={`/student/scouts`}
-                  className="px-3 py-1 rounded border text-sm"
-                >
+                {/* 将来：メッセージスレッド等に遷移 */}
+                <Link href="/student/scouts" className="px-3 py-1 rounded border text-sm">
                   スカウト一覧
                 </Link>
               </div>
@@ -266,14 +207,18 @@ export default function ApplicationsPage() {
   );
 }
 
-/* ===== ユーティリティ ===== */
-function toStatus(v: any): ApplicationStatus {
-  const s = String(v ?? "選考中") as ApplicationStatus;
-  return (["選考中", "面談", "内定", "否決", "取消"] as const).includes(s)
-    ? s
-    : "選考中";
-}
-function toSource(v: any): Source {
-  const s = String(v ?? "self") as Source;
-  return (["scout", "self"] as const).includes(s) ? s : "self";
+/* ===== 補助：ソースバッジ ===== */
+function SourceBadge({ source }: { source: Source }) {
+  if (source === "scout") {
+    return (
+      <span className="px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700">
+        スカウト経由
+      </span>
+    );
+  }
+  return (
+    <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
+      自主応募
+    </span>
+  );
 }

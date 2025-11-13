@@ -1,19 +1,19 @@
+// app/student/applications/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-/** タブ（既存UIの想定に合わせる） */
+/** 画面表示用 型 */
 type ApplicationStatus = "選考中" | "面談" | "内定" | "否決" | "取消";
 type Source = "scout" | "self";
 
-/** 画面に表示する最終形 */
 type Application = {
   id: string;
   hospitalId: string;
   hospitalName: string;
-  appliedAt: string;            // ISO
+  appliedAt: string; // ISO
   status: ApplicationStatus;
   source: Source;
   note?: string;
@@ -21,25 +21,23 @@ type Application = {
 };
 
 const TABS: Array<"すべて" | ApplicationStatus> = [
-  "すべて", "選考中", "面談", "内定", "否決", "取消",
+  "すべて",
+  "選考中",
+  "面談",
+  "内定",
+  "否決",
+  "取消",
 ];
-
-/** ★ ここはあなたの環境の FK 名に合わせてください */
-const HOSPITAL_FK = "hospital_applications_hospital_id_fkey";
 
 export default function ApplicationsPage() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
-
-  // UI 状態
   const [tab, setTab] = useState<(typeof TABS)[number]>("すべて");
   const [q, setQ] = useState("");
-
-  // 取得データ
   const [rows, setRows] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** DBから応募履歴を取得（ログアウト後も DB に残る） */
-  const load = async () => {
+  /** DBから応募履歴を取得（JOINは二段階） */
+  const refresh = async () => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -49,47 +47,81 @@ export default function ApplicationsPage() {
         return;
       }
 
-      // hospitals を JOIN（外部キー名に注意）
-      const { data, error } = await supabase
+      // 1) hospital_applications を取得（自分の行）
+      const { data: apps, error } = await supabase
         .from("hospital_applications")
-        .select(
-          `
-           id,
-           hospital_id,
-           status,
-           source,
-           note,
-           tags,
-           created_at,
-           hospitals:${HOSPITAL_FK} ( id, name )
-          `
-        )
+        .select("id,hospital_id,status,source,note,tags,created_at")
         .eq("student_id", user.id)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
 
-      const normalized: Application[] = (data ?? []).map((r: any) => ({
-        id          : String(r.id),
-        hospitalId  : String(r.hospital_id),
-        hospitalName: r.hospitals?.name ?? "(名称未設定)",
-        appliedAt   : new Date(r.created_at ?? Date.now()).toISOString(),
-        status      : (r.status || "選考中") as ApplicationStatus,
-        source      : (r.source || "self") as Source,
-        note        : r.note ?? "",
-        tags        : Array.isArray(r.tags) ? r.tags : [],
+      if (!apps || apps.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2) hospitals から名前取得
+      const hospitalIds = Array.from(new Set(apps.map((a) => a.hospital_id)));
+      const { data: hospRows, error: herr } = await supabase
+        .from("hospitals")
+        .select("id,name")
+        .in("id", hospitalIds);
+      if (herr) throw herr;
+
+      const hmap = new Map<string, string>();
+      (hospRows ?? []).forEach((h: any) => hmap.set(String(h.id), String(h.name)));
+
+      const mapped: Application[] = (apps as any[]).map((a) => ({
+        id: String(a.id),
+        hospitalId: String(a.hospital_id),
+        hospitalName: hmap.get(String(a.hospital_id)) ?? "(名称未設定)",
+        appliedAt: new Date(a.created_at ?? Date.now()).toISOString(),
+        status: (a.status || "選考中") as ApplicationStatus,
+        source: (a.source || "self") as Source,
+        note: a.note ?? "",
+        tags: Array.isArray(a.tags) ? a.tags : [],
       }));
 
-      setRows(normalized);
+      setRows(mapped);
     } catch (e: any) {
-      console.error("[applications] load error", e?.message);
+      console.error("[student-applications] refresh error:", e?.message || e);
       alert(`応募履歴の取得に失敗しました：${e?.message ?? "unknown"}`);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []); // 初回のみ
+  useEffect(() => { refresh(); }, []);
+
+  /** Realtime: 自分の hospital_applications の変更を購読 → 即 refresh */
+  useEffect(() => {
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      ch = supabase
+        .channel(`student-apps:${user.id}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "hospital_applications",
+            filter: `student_id=eq.${user.id}`,
+          },
+          () => refresh()
+        )
+        .subscribe();
+    })();
+
+    return () => {
+      if (ch) supabase.removeChannel(ch);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /** タブ・検索フィルタ */
   const list = useMemo(() => {
@@ -118,7 +150,7 @@ export default function ApplicationsPage() {
             className="border rounded px-3 py-1.5 text-sm"
           />
           <button
-            onClick={load}
+            onClick={refresh}
             className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
             title="最新の状態に更新"
           >

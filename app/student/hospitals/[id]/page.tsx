@@ -38,6 +38,7 @@ export default function StudentHospitalDetail() {
   const [row, setRow] = useState<HospitalRow | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // 病院1件取得
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -107,7 +108,7 @@ export default function StudentHospitalDetail() {
               検討リストを開く
             </Link>
 
-            {/* DB 検討トグル：useDbFavorites を唯一の真実として利用 */}
+            {/* 検討トグル */}
             <FavButton hospitalId={row.id} />
           </div>
         </div>
@@ -158,43 +159,64 @@ export default function StudentHospitalDetail() {
 }
 
 /* =========================================================
-   検討リスト（DB）用トグルボタン
-   - useDbFavorites を唯一の真実として利用
-   - hook 側の API 名の差異にも耐える薄いアダプタ
+   検討リストトグル（即時反映・API名の差異を吸収）
 ========================================================= */
 function FavButton({ hospitalId }: { hospitalId: string }) {
-  // Hook 形の差異を吸収しつつ呼び出す（ランタイム安全優先）
+  // あなたの hook（API 名は環境差がある前提）
   const fav = useDbFavorites() as any;
 
-  // 可能な API 名を順に試して判定
-  const isActive =
-    !!fav?.isFavorite?.(hospitalId) ||
-    !!fav?.has?.(hospitalId) ||
-    !!fav?.isFav?.(hospitalId) ||
-    false;
+  // re-render トリガーになる一覧（list / rows / items / favorites のどれか）
+  const dep =
+    fav?.list ?? fav?.rows ?? fav?.items ?? fav?.favorites ?? {};
 
+  // active 判定関数（存在するものを使う）
+  const isActive: boolean = useMemo(() => {
+    const fn =
+      fav?.has ||          // 例: has(id)
+      fav?.isFavorite ||   // 例: isFavorite(id)
+      fav?.isFav;          // 例: isFav(id)
+
+    try {
+      return typeof fn === "function" ? !!fn.call(fav, hospitalId) : false;
+    } catch {
+      return false;
+    }
+    // dep を依存に入れることでトグル直後に即 re-render
+  }, [hospitalId, dep]);
+
+  // トグル関数（存在する名前を順に試す）
   const toggle = async () => {
-    if (fav?.toggleFavorite) await fav.toggleFavorite(hospitalId);
-    else if (fav?.toggle) await fav.toggle(hospitalId);
-    else if (fav?.upsertDelete) await fav.upsertDelete(hospitalId);
-    // Hook 側に refresh がある場合は反映を待って一覧/ダッシュに即時伝播
-    if (fav?.refresh) await fav.refresh();
+    const fn =
+      fav?.toggle ||           // 例: toggle(id)
+      fav?.toggleFavorite ||   // 例: toggleFavorite(id)
+      fav?.upsertDelete;       // 例: upsertDelete(id)
+
+    if (typeof fn === "function") {
+      await fn.call(fav, hospitalId);
+      // hook 側に refresh があれば即同期
+      if (typeof fav?.refresh === "function") await fav.refresh();
+    }
   };
+
+  const busy = !!fav?.loading;
 
   return (
     <button
+      type="button"
       onClick={toggle}
-      aria-label="検討に追加"
-      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 ${
-        isActive ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50"
-      }`}
+      disabled={busy}
+      aria-pressed={isActive}
+      aria-label={isActive ? "検討中" : "検討に追加"}
+      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition
+        ${isActive ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50"}
+        ${busy ? "opacity-60 cursor-not-allowed" : ""}`}
     >
       <Heart
         className="w-4 h-4"
         color={isActive ? "#ef4444" : "#666"}
         fill={isActive ? "#ef4444" : "transparent"}
       />
-      {isActive ? "検討中" : "検討に追加"}
+      <span>{isActive ? "検討中" : "検討に追加"}</span>
     </button>
   );
 }

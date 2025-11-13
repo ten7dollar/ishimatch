@@ -38,7 +38,6 @@ export default function StudentHospitalDetail() {
   const [row, setRow] = useState<HospitalRow | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 病院1件取得
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -159,64 +158,79 @@ export default function StudentHospitalDetail() {
 }
 
 /* =========================================================
-   検討リストトグル（即時反映・API名の差異を吸収）
+   検討リストトグル（DB）
+   - useDbFavorites が提供する最小APIだけに依存
+   - クリック直後に見た目を切替（楽観更新）→ フックの refresh で確定反映
 ========================================================= */
 function FavButton({ hospitalId }: { hospitalId: string }) {
-  // あなたの hook（API 名は環境差がある前提）
-  const fav = useDbFavorites() as any;
+  const fav = useDbFavorites() as {
+    list: Array<{ hospital_id: string }>;
+    isFavorite?: (id: string) => boolean;
+    has?: (id: string) => boolean;
+    toggleFavorite?: (id: string) => Promise<void>;
+    toggle?: (id: string) => Promise<void>;
+    upsertDelete?: (id: string) => Promise<void>;
+    refresh?: () => Promise<void>;
+  };
 
-  // re-render トリガーになる一覧（list / rows / items / favorites のどれか）
-  const dep =
-    fav?.list ?? fav?.rows ?? fav?.items ?? fav?.favorites ?? {};
+  // フックが未初期化でも安全に
+  const safeHas = (id: string) =>
+    (typeof fav?.isFavorite === "function" && fav.isFavorite(id)) ||
+    (typeof fav?.has === "function" && fav.has(id)) ||
+    (Array.isArray(fav?.list) && fav.list.some((r) => r.hospital_id === id)) ||
+    false;
 
-  // active 判定関数（存在するものを使う）
-  const isActive: boolean = useMemo(() => {
-    const fn =
-      fav?.has ||          // 例: has(id)
-      fav?.isFavorite ||   // 例: isFavorite(id)
-      fav?.isFav;          // 例: isFav(id)
+  const [active, setActive] = useState<boolean>(safeHas(hospitalId));
+  const [busy, setBusy] = useState(false);
 
-    try {
-      return typeof fn === "function" ? !!fn.call(fav, hospitalId) : false;
-    } catch {
-      return false;
-    }
-    // dep を依存に入れることでトグル直後に即 re-render
-  }, [hospitalId, dep]);
+  // フック側の list 変化に追随
+  useEffect(() => {
+    setActive(safeHas(hospitalId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fav?.list, hospitalId]);
 
-  // トグル関数（存在する名前を順に試す）
   const toggle = async () => {
-    const fn =
-      fav?.toggle ||           // 例: toggle(id)
-      fav?.toggleFavorite ||   // 例: toggleFavorite(id)
-      fav?.upsertDelete;       // 例: upsertDelete(id)
-
-    if (typeof fn === "function") {
-      await fn.call(fav, hospitalId);
-      // hook 側に refresh があれば即同期
+    if (busy) return;
+    setBusy(true);
+    // 楽観更新
+    setActive((prev) => !prev);
+    try {
+      if (typeof fav?.toggleFavorite === "function") {
+        await fav.toggleFavorite(hospitalId);
+      } else if (typeof fav?.toggle === "function") {
+        await fav.toggle(hospitalId);
+      } else if (typeof fav?.upsertDelete === "function") {
+        await fav.upsertDelete(hospitalId);
+      }
       if (typeof fav?.refresh === "function") await fav.refresh();
+    } catch (e) {
+      // 失敗時は元に戻す
+      setActive((prev) => !prev);
+      console.error("[favorite] toggle error", e);
+      alert("検討リストの更新に失敗しました。時間をおいて再度お試しください。");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const busy = !!fav?.loading;
-
   return (
     <button
-      type="button"
       onClick={toggle}
       disabled={busy}
-      aria-pressed={isActive}
-      aria-label={isActive ? "検討中" : "検討に追加"}
-      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition
-        ${isActive ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50"}
-        ${busy ? "opacity-60 cursor-not-allowed" : ""}`}
+      aria-label="検討に追加"
+      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition-colors ${
+        active
+          ? "bg-red-50 text-red-600 border-red-300"
+          : "hover:bg-gray-50 text-gray-700 border-gray-300"
+      } ${busy ? "opacity-60 cursor-not-allowed" : ""}`}
+      title={active ? "検討中（クリックで外す）" : "検討に追加"}
     >
       <Heart
         className="w-4 h-4"
-        color={isActive ? "#ef4444" : "#666"}
-        fill={isActive ? "#ef4444" : "transparent"}
+        color={active ? "#ef4444" : "#666"}
+        fill={active ? "#ef4444" : "transparent"}
       />
-      <span>{isActive ? "検討中" : "検討に追加"}</span>
+      {active ? "検討中" : "検討に追加"}
     </button>
   );
 }

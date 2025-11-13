@@ -6,6 +6,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Heart } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
+import { useDbFavorites } from "@/app/hooks/useDbFavorites";
 
 /* ---------- 型（public.hospitals） ---------- */
 type HospitalRow = {
@@ -84,20 +85,29 @@ export default function StudentHospitalDetail() {
           <div>
             <h1 className="text-xl font-semibold text-primary-700">{row.name}</h1>
             <p className="text-sm text-text-muted">
-              {row.prefecture ?? "—"}・{row.city ?? "—"}（{row.region ?? "—"}）
+              {`${row.prefecture ?? "—"}・${row.city ?? "—"}（${row.region ?? "—"}）`}
             </p>
           </div>
 
           <div className="flex gap-2">
             {row.website_url && (
-              <a href={row.website_url} target="_blank" rel="noreferrer" className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50">
+              <a
+                href={row.website_url}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+              >
                 公式サイト
               </a>
             )}
-            <Link href="/student/saved" className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50">
+            <Link
+              href="/student/saved"
+              className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+            >
               検討リストを開く
             </Link>
-            {/* ★ お気に入りトグル */}
+
+            {/* DB 検討トグル：useDbFavorites を唯一の真実として利用 */}
             <FavButton hospitalId={row.id} />
           </div>
         </div>
@@ -107,14 +117,21 @@ export default function StudentHospitalDetail() {
       <section className="card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-primary-700">病院概要</h2>
         <div className="grid md:grid-cols-2 gap-3 text-sm">
-          <p><span className="text-text-muted">所在地：</span>{row.address ?? `${row.prefecture ?? ""}${row.city ? "・" + row.city : ""}`}</p>
+          <p>
+            <span className="text-text-muted">所在地：</span>
+            {row.address
+              ? row.address
+              : `${row.prefecture ?? ""}${row.city ? "・" + row.city : ""}` || "—"}
+          </p>
           <p><span className="text-text-muted">救急区分：</span>{row.facility_type ?? "—"}</p>
           <p><span className="text-text-muted">病床数：</span>{row.bed_count ?? "—"}</p>
           <p><span className="text-text-muted">研修医数（1年目）：</span>{row.residents_first_year ?? "—"}</p>
           <p><span className="text-text-muted">当直回数：</span>{row.duty_frequency ?? "—"}</p>
           <p>
             <span className="text-text-muted">年収：</span>
-            {row.salary_1st_year_min ? `${row.salary_1st_year_min}万〜${row.salary_1st_year_max ?? "—"}万` : "—"}
+            {row.salary_1st_year_min
+              ? `${row.salary_1st_year_min}万〜${row.salary_1st_year_max ?? "—"}万`
+              : "—"}
           </p>
         </div>
       </section>
@@ -142,51 +159,26 @@ export default function StudentHospitalDetail() {
 
 /* =========================================================
    検討リスト（DB）用トグルボタン
-   - student_favorites に upsert / delete
-   - RLS: self_select / self_upsert がある前提
+   - useDbFavorites を唯一の真実として利用
+   - hook 側の API 名の差異にも耐える薄いアダプタ
 ========================================================= */
 function FavButton({ hospitalId }: { hospitalId: string }) {
-  const supabase = useMemo(() => createSupabaseBrowser(), []);
-  const [active, setActive] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // Hook 形の差異を吸収しつつ呼び出す（ランタイム安全優先）
+  const fav = useDbFavorites() as any;
 
-  // 初期状態取得
-  useEffect(() => {
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase
-        .from("student_favorites")
-        .select("hospital_id")
-        .eq("student_id", user.id)
-        .eq("hospital_id", hospitalId)
-        .maybeSingle();
-      setActive(!!data);
-    })();
-  }, [hospitalId, supabase]);
+  // 可能な API 名を順に試して判定
+  const isActive =
+    !!fav?.isFavorite?.(hospitalId) ||
+    !!fav?.has?.(hospitalId) ||
+    !!fav?.isFav?.(hospitalId) ||
+    false;
 
   const toggle = async () => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      if (active) {
-        await supabase
-          .from("student_favorites")
-          .delete()
-          .eq("student_id", user.id)
-          .eq("hospital_id", hospitalId);
-        setActive(false);
-      } else {
-        await supabase
-          .from("student_favorites")
-          .upsert({ student_id: user.id, hospital_id: hospitalId });
-        setActive(true);
-      }
-    } finally {
-      setBusy(false);
-    }
+    if (fav?.toggleFavorite) await fav.toggleFavorite(hospitalId);
+    else if (fav?.toggle) await fav.toggle(hospitalId);
+    else if (fav?.upsertDelete) await fav.upsertDelete(hospitalId);
+    // Hook 側に refresh がある場合は反映を待って一覧/ダッシュに即時伝播
+    if (fav?.refresh) await fav.refresh();
   };
 
   return (
@@ -194,15 +186,15 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
       onClick={toggle}
       aria-label="検討に追加"
       className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 ${
-        active ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50"
+        isActive ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50"
       }`}
     >
       <Heart
         className="w-4 h-4"
-        color={active ? "#ef4444" : "#666"}
-        fill={active ? "#ef4444" : "transparent"}
+        color={isActive ? "#ef4444" : "#666"}
+        fill={isActive ? "#ef4444" : "transparent"}
       />
-      {active ? "検討中" : "検討に追加"}
+      {isActive ? "検討中" : "検討に追加"}
     </button>
   );
 }

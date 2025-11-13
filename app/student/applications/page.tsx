@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-/** 学生側 応募履歴 localStorage キー */
+/** 学生側 応募履歴 localStorage キー（既存のMVPデータ） */
 const STUDENT_APPS_KEY = "ishimatch:student:applications";
 
-/* ===== 型定義（既存構成に合わせる） ===== */
+/* ===== 型定義（UI用） ===== */
 type ApplicationStatus = "選考中" | "面談" | "内定" | "否決" | "取消";
 type Source = "scout" | "self"; // スカウト経由 or 自主応募
 
@@ -14,7 +15,7 @@ type Application = {
   id: string;
   hospitalId: string;
   hospitalName: string;
-  appliedAt: string;            // yyyy-MM-dd or ISO
+  appliedAt: string;            // ISO
   status: ApplicationStatus;
   source: Source;
   note?: string;
@@ -42,49 +43,108 @@ function SourceBadge({ source }: { source: Source }) {
   );
 }
 
-/* ===== ページコンポーネント（Hooks はこの中だけ） ===== */
+/* ===================================================================
+   ページ
+=================================================================== */
 export default function ApplicationsPage() {
-  // 既存UIを維持：タブとキーワード検索
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
+
+  // 既存UI：タブとキーワード検索
   const [tab, setTab] = useState<(typeof TABS)[number]>("すべて");
   const [q, setQ] = useState("");
 
-  // あなたの既存のサーバーデータがあればここに入れてください
-  // 例）const serverApps: Application[] = useServerApps();
-  const serverApps: Application[] = []; // MVP: 今は空でOK
-
-  // ★ localStorage からの応募を読み込む
+  // Supabase + localStorage をマージした「真実の配列」
+  const [serverApps, setServerApps] = useState<Application[]>([]);
   const [localApps, setLocalApps] = useState<Application[]>([]);
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+
+  /** Supabase 側（永続）を取得 */
+  const loadFromServer = async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setServerApps([]);
+        setLoading(false);
+        return;
+      }
+
+      // hospitals.name を取得（FK が無い環境では null になるので guarded）
+      const { data, error } = await supabase
+        .from("hospital_applications")
+        .select(
+          "id, hospital_id, student_id, status, source, applied_at, hospitals ( id, name )"
+        )
+        .eq("student_id", user.id)
+        .order("applied_at", { ascending: false });
+
+      if (error) throw error;
+
+      const normalized: Application[] = (data ?? []).map((r: any) => ({
+        id: String(r.id),
+        hospitalId: String(r.hospital_id),
+        hospitalName:
+          (r.hospitals && r.hospitals.name) ? String(r.hospitals.name) : "(名称未設定)",
+        appliedAt: new Date(r.applied_at ?? Date.now()).toISOString(),
+        status: toStatus(r.status),
+        source: toSource(r.source),
+        note: "",
+        tags: [],
+      }));
+
+      setServerApps(normalized);
+    } catch (e: any) {
+      console.error("[applications] server load error:", e.message ?? e);
+      setServerApps([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** localStorage 側（MVP一時保存）を取得 */
+  const loadFromLocal = () => {
     try {
       const raw = localStorage.getItem(STUDENT_APPS_KEY);
-      if (!raw) return;
+      if (!raw) {
+        setLocalApps([]);
+        return;
+      }
       const arr = JSON.parse(raw) as any[];
-
-      // local の保存形式は { id, hospitalId, hospitalName, appliedAt, status, source? } を想定
       const normalized: Application[] = arr.map((a) => ({
         id: String(a.id),
         hospitalId: String(a.hospitalId),
-        hospitalName: String(a.hospitalName),
-        appliedAt: String(a.appliedAt),
-        status: (a.status || "選考中") as ApplicationStatus,
-        source: (a.source || "self") as Source,
+        hospitalName: String(a.hospitalName ?? "(名称未設定)"),
+        appliedAt: new Date(a.appliedAt ?? Date.now()).toISOString(),
+        status: toStatus(a.status),
+        source: toSource(a.source),
         note: a.note || "",
         tags: a.tags || [],
       }));
       setLocalApps(normalized);
     } catch {
-      // パース失敗時は何もしない
+      setLocalApps([]);
     }
+  };
+
+  /** 初回とセッション変化で再取得 */
+  useEffect(() => {
+    loadFromLocal();
+    loadFromServer();
+    const { data: sub } = supabase.auth.onAuthStateChange(() => {
+      loadFromServer();
+    });
+    return () => sub.subscription?.unsubscribe?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ★ 表示配列：サーバー配列とローカル配列をマージ（重複 id はサーバー優先）
+  /** 表示用：サーバー優先でマージ → フィルタ */
   const list = useMemo(() => {
     const map = new Map<string, Application>();
     serverApps.forEach((a) => map.set(a.id, a)); // サーバー優先
     localApps.forEach((a) => { if (!map.has(a.id)) map.set(a.id, a); });
 
-    // キーワード検索（病院名）
     let arr = Array.from(map.values());
+    // キーワード検索（病院名）
     if (q.trim()) {
       const low = q.trim().toLowerCase();
       arr = arr.filter((a) => a.hospitalName.toLowerCase().includes(low));
@@ -93,7 +153,7 @@ export default function ApplicationsPage() {
     if (tab !== "すべて") {
       arr = arr.filter((a) => a.status === tab);
     }
-    // 応募日の新しい順
+    // 日付降順
     arr.sort((a, b) => b.appliedAt.localeCompare(a.appliedAt));
     return arr;
   }, [serverApps, localApps, tab, q]);
@@ -113,6 +173,13 @@ export default function ApplicationsPage() {
             placeholder="病院名で検索"
             className="border rounded px-3 py-1.5 text-sm"
           />
+          <button
+            onClick={loadFromServer}
+            className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+            title="再読み込み"
+          >
+            更新
+          </button>
         </div>
       </div>
 
@@ -135,7 +202,11 @@ export default function ApplicationsPage() {
       </div>
 
       {/* リスト */}
-      {list.length === 0 ? (
+      {loading ? (
+        <div className="p-8 border rounded bg-gray-50 text-center text-gray-500">
+          読み込み中…
+        </div>
+      ) : list.length === 0 ? (
         <div className="p-8 border rounded bg-gray-50 text-center text-gray-500">
           まだ応募履歴がありません。
         </div>
@@ -171,10 +242,6 @@ export default function ApplicationsPage() {
                 </div>
               </div>
 
-              {app.note && (
-                <p className="mt-2 text-sm text-gray-700 whitespace-pre-wrap">{app.note}</p>
-              )}
-
               {/* アクション */}
               <div className="mt-3 flex gap-2">
                 <Link
@@ -197,4 +264,16 @@ export default function ApplicationsPage() {
       )}
     </main>
   );
+}
+
+/* ===== ユーティリティ ===== */
+function toStatus(v: any): ApplicationStatus {
+  const s = String(v ?? "選考中") as ApplicationStatus;
+  return (["選考中", "面談", "内定", "否決", "取消"] as const).includes(s)
+    ? s
+    : "選考中";
+}
+function toSource(v: any): Source {
+  const s = String(v ?? "self") as Source;
+  return (["scout", "self"] as const).includes(s) ? s : "self";
 }

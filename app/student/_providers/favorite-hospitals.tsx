@@ -12,15 +12,15 @@ import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 /** saved 画面が期待している Hospital 表示型 */
 export type Hospital = {
-  id: string;             // hospitals.hospital_id
+  id: string;             // hospitals_resolved.id（= 学生が見るID）
   name: string;
   prefecture: string;
   area: string;           // = region
-  salary: string;         // 整形した文字列（例: "348〜482万円"）
+  salary: string;         // 例: "348〜482万円" / "-"
   emergency: string;      // 二次/三次/不明 etc
-  residents: string;      // 整形（例: "10人/年" or "合計…"）
-  beds: string;           // "611床"
-  duty: string;           // 当直回数（文字列）
+  residents: string;      // 例: "10人/年" or "合計…" / "-"
+  beds: string;           // "611床" / "-"
+  duty: string;           // "-"
   tags?: string[];
 };
 
@@ -33,16 +33,16 @@ type State = {
   toggleFavorite: (h: Hospital) => Promise<void>;
   clearAll: () => Promise<void>;
   count: number;
-  /** 新規（必要に応じて） */
+  /** 読み込み状態（saved 画面で使用） */
   loading: boolean;
 };
 
 const Ctx = createContext<State | null>(null);
 
 /* ---------------------------
-   hospitals → Hospital 整形
+   hospitals_resolved → Hospital 整形
 --------------------------- */
-function normalizeFromHospitalsRow(row: any): Hospital {
+function normalizeFromResolvedRow(row: any): Hospital {
   const min = row.salary_1st_year_min ?? null;
   const max = row.salary_1st_year_max ?? null;
   const salary =
@@ -60,12 +60,12 @@ function normalizeFromHospitalsRow(row: any): Hospital {
       : "-";
 
   return {
-    id: row.hospital_id,
+    id: String(row.id),
     name: row.name ?? "(名称未設定)",
     prefecture: row.prefecture ?? "",
     area: row.region ?? "",
     salary,
-    emergency: row.facility_type ?? "-",   // 例: 三次救急/二次救急/不明
+    emergency: row.facility_type ?? "-",
     residents,
     beds: row.bed_count != null ? `${row.bed_count}床` : "-",
     duty: row.duty_frequency ?? "-",
@@ -74,19 +74,17 @@ function normalizeFromHospitalsRow(row: any): Hospital {
 }
 
 /* ---------------------------
-   Provider 本体
+   Provider 本体（B案：2段階取得）
+   1) student_favorites を読み込む（hospital_id の配列）
+   2) hospitals_resolved を in(id, …) でまとめて取得 → 正規化して Map 化
 --------------------------- */
-export function FavoriteHospitalsProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function FavoriteHospitalsProvider({ children }: { children: React.ReactNode }) {
   const supabase = createSupabaseBrowser();
   const [favorites, setFavorites] = useState<Record<string, Hospital>>({});
   const [loading, setLoading] = useState(true);
   const userIdRef = useRef<string | null>(null);
 
-  /** 初期ロード：Supabase の favorites を JOIN で取得 */
+  /** 初期ロード：favorites → hospitals_resolved を in(id, …) で取得 */
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -99,32 +97,36 @@ export function FavoriteHospitalsProvider({
         }
         userIdRef.current = user.id;
 
-        const { data, error } = await supabase
+        // 1) favorites の hospital_id 一覧を取得
+        const { data: favRows, error: favErr } = await supabase
           .from("student_favorites")
-          .select(`
-            created_at,
-            hospital: hospitals (
-              hospital_id,
-              name,
-              prefecture,
-              region,
-              salary_1st_year_min,
-              salary_1st_year_max,
-              facility_type,
-              residents_first_year,
-              residents_total,
-              bed_count,
-              duty_frequency
-            )
-          `)
+          .select("hospital_id, created_at")
           .eq("student_id", user.id)
           .order("created_at", { ascending: false });
 
-        if (error) throw error;
+        if (favErr) throw favErr;
+
+        const ids = Array.from(
+          new Set((favRows ?? []).map((r) => String(r.hospital_id)))
+        );
+        if (ids.length === 0) {
+          setFavorites({});
+          return;
+        }
+
+        // 2) hospitals_resolved を in(id, …) で取得
+        const { data: hsRows, error: hsErr } = await supabase
+          .from("hospitals_resolved")
+          .select(
+            "id, name, prefecture, region, city, bed_count, residents_first_year, residents_total, salary_1st_year_min, salary_1st_year_max, duty_frequency, facility_type"
+          )
+          .in("id", ids);
+
+        if (hsErr) throw hsErr;
 
         const map: Record<string, Hospital> = {};
-        (data ?? []).forEach((row: any) => {
-          const h = normalizeFromHospitalsRow(row.hospital);
+        (hsRows ?? []).forEach((r) => {
+          const h = normalizeFromResolvedRow(r);
           map[h.id] = h;
         });
         setFavorites(map);
@@ -145,7 +147,7 @@ export function FavoriteHospitalsProvider({
     const studentId = userIdRef.current;
     if (!studentId) return;
 
-    // 先にUI更新（楽観）
+    // 先にUIを楽観更新
     setFavorites((prev) => ({ ...prev, [h.id]: h }));
     try {
       const { error } = await supabase
@@ -227,7 +229,7 @@ export function FavoriteHospitalsProvider({
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-/** 既存のフック名はそのまま使えます */
+/** Provider フック */
 export function useFavoriteHospitals() {
   const ctx = useContext(Ctx);
   if (!ctx) throw new Error("useFavoriteHospitals must be used inside <FavoriteHospitalsProvider>");

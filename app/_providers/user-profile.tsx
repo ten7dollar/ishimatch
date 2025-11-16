@@ -27,6 +27,7 @@ type HospitalAccount = {
   email: string | null;
   contact_name?: string | null;
   hospital_name?: string | null;
+  hospital_id?: string | null; // ← 追加：公開レコード(hospitals.id)との紐付け
 };
 
 type Ctx = {
@@ -114,10 +115,17 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
       try {
         if (r === "student") {
           const { data } = await supabase.from("students").select("id").eq("id", uid).maybeSingle();
-          if (!data) await supabase.from("students").upsert({ id: uid, email, name });
+          if (!data) {
+            await supabase.from("students").upsert({ id: uid, email, name });
+          }
         } else {
           const { data } = await supabase.from("hospital_accounts").select("id").eq("id", uid).maybeSingle();
-          if (!data) await supabase.from("hospital_accounts").upsert({ id: uid, email, contact_name: name, hospital_name: null });
+          if (!data) {
+            // ← ここで hospital_id = id を既定リンク（初回作成保険）
+            await supabase
+              .from("hospital_accounts")
+              .upsert({ id: uid, email, contact_name: name, hospital_name: null, hospital_id: uid });
+          }
         }
       } catch {
         // adminの /api/onboard が作っている前提。ここでの失敗は致命ではないため握りつぶし
@@ -126,7 +134,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
     [supabase]
   );
 
-  /** メインロード：localStorage → getSession → DB 補正 */
+  /** メインロード：localStorage → getSession → DB 補正（病院は hospital_id の自動リンクを追加） */
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -162,7 +170,7 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
       const r: Role = (meta.role as Role) || readRoleCookie() || "student";
       setRole(r);
 
-      // 3) row を保証 → 取得で補正
+      // 3) row を保証（冪等）
       await ensureProfileRow(session.user.id, r, email || null, metaName || null);
 
       if (r === "student") {
@@ -174,13 +182,29 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
         setStudent(data ?? { id: session.user.id, name: metaName || null, email: email || null });
         setHospital(undefined);
       } else {
-        const { data } = await supabase
+        // 病院アカウントを取得（hospital_id を含めて確認）
+        const { data: ha } = await supabase
           .from("hospital_accounts")
-          .select("id,email,contact_name,hospital_name")
+          .select("id,email,contact_name,hospital_name,hospital_id")
           .eq("id", session.user.id)
           .maybeSingle();
+
+        // hospital_id が未設定なら、自動で id を紐付け（初回保険）
+        if (ha && !ha.hospital_id) {
+          try {
+            await supabase
+              .from("hospital_accounts")
+              .update({ hospital_id: session.user.id })
+              .eq("id", session.user.id);
+            // 更新後の値で埋め直し
+            ha.hospital_id = session.user.id;
+          } catch {
+            // 握りつぶし（公開に影響が出るのは View 合成時だが、保険なので止めない）
+          }
+        }
+
         setHospital(
-          data ?? { id: session.user.id, email: email || null, contact_name: metaName || null, hospital_name: null }
+          ha ?? { id: session.user.id, email: email || null, contact_name: metaName || null, hospital_name: null, hospital_id: session.user.id }
         );
         setStudent(undefined);
       }
@@ -229,8 +253,9 @@ export default function UserProfileProvider({ children }: { children: ReactNode 
         await load();
       } else {
         const payload: Partial<HospitalAccount> = {
-          ...(values.contact_name !== undefined ? { contact_name: values.contact_name } : {}),
+          ...(values.contact_name  !== undefined ? { contact_name: values.contact_name } : {}),
           ...(values.hospital_name !== undefined ? { hospital_name: values.hospital_name } : {}),
+          ...(values.hospital_id   !== undefined ? { hospital_id: values.hospital_id } : {}),
         };
         if (Object.keys(payload).length) {
           await supabase.from("hospital_accounts").upsert({ id: user.id, ...payload });

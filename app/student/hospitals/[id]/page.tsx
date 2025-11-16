@@ -43,9 +43,9 @@ export default function StudentHospitalDetail() {
       if (!hospitalId) return;
       setLoading(true);
       const { data, error } = await supabase
-        .from("hospitals")
+        .from("hospitals_resolved")
         .select(
-          "id,name,name_kana,prefecture,region,city,address,website_url,facility_type,bed_count,residents_first_year,salary_1st_year_min,salary_1st_year_max,duty_frequency,pr_highlights"
+          "id, name, prefecture, city, region, address, facility_type, bed_count, residents_first_year, salary_1st_year_min, salary_1st_year_max, duty_frequency, pr_highlights, website_url,duty_frequency,pr_highlights"
         )
         .eq("id", hospitalId)
         .maybeSingle();

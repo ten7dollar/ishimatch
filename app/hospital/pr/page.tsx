@@ -1,26 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, ChangeEvent, DragEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  ChangeEvent,
+  DragEvent,
+} from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { Upload, Eye, Trash2, Pencil, Save } from "lucide-react";
 
 /* --------------------------------------------------
    Supabase 型（hospital_accounts の主要カラム）
-   ※ あなたのテーブルに合わせて適宜追加してOK
+   ※ hospitals と同じ命名に合わせています
 -------------------------------------------------- */
+type Facility = "二次救急" | "三次救急" | "どちらでも" | "不明";
+type Duty = "~2回" | "3~4回" | "5回以上" | "特になし";
+
 type HospitalAccount = {
   id: string;                    // auth.uid() と一致
-  name: string | null;
+  hospital_id: string | null;    // 公開側（hospitals.id）への紐付け
+  hospital_name: string | null;
   prefecture: string | null;
   region: string | null;
   city: string | null;
   address: string | null;
+  access: string | null;
   website_url: string | null;
 
-  facility_type: "二次救急" | "三次救急" | "どちらでも" | "不明" | null;
+  facility_type: Facility | null;
   bed_count: number | null;
-  residents_first_year: number | null;             // 1年目の研修医数
-  duty_frequency: "~2回" | "3~4回" | "5回以上" | "特になし" | null;
+  residents_first_year: number | null;
+  residents_total: number | null;
+  duty_frequency: Duty | null;
 
   salary_1st_year_min: number | null;
   salary_1st_year_max: number | null;
@@ -31,9 +45,16 @@ type HospitalAccount = {
   commute_allowance: boolean | null;
 
   pr_highlights: string | null;
+
   contact_email: string | null;
   contact_tel: string | null;
-  // ほか JSONB 系カラム（program_features など）は PR 時点では未保存にしています
+
+  /* 画像（必要なら先にカラム追加）
+  hero_image_url?: string | null;
+  logo_url?: string | null;
+  */
+
+  is_published: boolean | null;
 };
 
 const inputBase =
@@ -63,29 +84,37 @@ export default function HospitalPRPage() {
       }
       setUid(user.id);
 
+      // 自分のレコードを取得（なければ作成）
       const { data, error } = await supabase
         .from("hospital_accounts")
         .select("*")
         .eq("id", user.id)
         .maybeSingle();
-
       if (error) throw error;
 
-      // まだ行がなければ作る（RLS: self_upsert が必要）
       if (!data) {
-        const { error: e2 } = await supabase.from("hospital_accounts").upsert({ id: user.id });
-        if (e2) throw e2;
-        setRow({
-          id: user.id,
-          name: null, prefecture: null, region: null, city: null, address: null, website_url: null,
-          facility_type: null, bed_count: null, residents_first_year: null, duty_frequency: null,
-          salary_1st_year_min: null, salary_1st_year_max: null,
-          bonus: null, housing_allowance: null, overtime_allowance: null, commute_allowance: null,
-          pr_highlights: null, contact_email: null, contact_tel: null,
-        });
-      } else {
-        setRow(data as HospitalAccount);
+        const { error: upErr } = await supabase
+          .from("hospital_accounts")
+          .upsert({ id: user.id, hospital_id: user.id, is_published: true });
+        if (upErr) throw upErr;
+      } else if (!data.hospital_id) {
+        // 紐付け漏れの保険：未設定なら id を紐付ける
+        const { error: linkErr } = await supabase
+          .from("hospital_accounts")
+          .update({ hospital_id: user.id })
+          .eq("id", user.id);
+        if (linkErr) console.warn("[pr] link hospital_id fallback:", linkErr.message);
       }
+
+      // 最新を読み直し
+      const { data: latest, error: reErr } = await supabase
+        .from("hospital_accounts")
+        .select("*")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (reErr) throw reErr;
+
+      setRow(latest as HospitalAccount);
     } catch (e: any) {
       console.error("[pr] load error:", e?.message);
       alert(`読み込みに失敗しました：${e?.message ?? "unknown"}`);
@@ -103,10 +132,8 @@ export default function HospitalPRPage() {
           .from("hospital_accounts")
           .update(payload)
           .eq("id", uid);
-
         if (error) throw error;
-        // 保存後に再読込して最新を反映
-        await load();
+        await load(); // 反映
       } catch (e: any) {
         console.error("[pr] save error:", e?.message);
         alert(`保存に失敗しました：${e?.message ?? "unknown"}`);
@@ -118,9 +145,9 @@ export default function HospitalPRPage() {
   );
 
   /** ============ 画面制御 ============ */
-  const [isPublic, setIsPublic] = useState(true); // is_public を DB に持つ場合は save({is_public: ...}) してください
+  const [isPublic, setIsPublic] = useState(true); // DBの is_published と同期
 
-  // Hero / Logo は今回はプレビューのみ
+  // Hero / Logo は今回はプレビューのみ（Storage導入は後続）
   const heroInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [heroURL, setHeroURL] = useState<string | null>(null);
@@ -139,7 +166,7 @@ export default function HospitalPRPage() {
   // 病院概要
   const [editOverview, setEditOverview] = useState(false);
   const [overview, setOverview] = useState({
-    name: "",
+    hospital_name: "",
     prefecture: "",
     address: "",
     region: "",
@@ -147,8 +174,10 @@ export default function HospitalPRPage() {
     facility_type: "",
     bed_count: "",
     residents_first_year: "",
+    residents_total: "",
     duty_frequency: "",
     website_url: "",
+    access: "",
   });
 
   // PR
@@ -167,34 +196,35 @@ export default function HospitalPRPage() {
   });
 
   // 初期ロード
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   // DB行を state に反映
   useEffect(() => {
     if (!row) return;
     setOverview({
-      name: row.name ?? "",
-      prefecture: row.prefecture ?? "",
-      address: row.address ?? "",
-      region: row.region ?? "",
-      city: row.city ?? "",
-      facility_type: row.facility_type ?? "",
-      bed_count: row.bed_count?.toString() ?? "",
+      hospital_name: row.hospital_name ?? "",
+      prefecture   : row.prefecture ?? "",
+      address      : row.address ?? "",
+      region       : row.region ?? "",
+      city         : row.city ?? "",
+      facility_type: (row.facility_type ?? "") as string,
+      bed_count    : row.bed_count?.toString() ?? "",
       residents_first_year: row.residents_first_year?.toString() ?? "",
-      duty_frequency: row.duty_frequency ?? "",
-      website_url: row.website_url ?? "",
+      residents_total     : row.residents_total?.toString() ?? "",
+      duty_frequency: (row.duty_frequency ?? "") as string,
+      website_url  : row.website_url ?? "",
+      access       : row.access ?? "",
     });
     setPr({ text: row.pr_highlights ?? "" });
     setJob({
       salaryMin: row.salary_1st_year_min?.toString() ?? "",
       salaryMax: row.salary_1st_year_max?.toString() ?? "",
-      bonus: row.bonus ?? "あり",
-      housing: String(!!row.housing_allowance),
-      overtime: String(!!row.overtime_allowance),
-      commute: String(!!row.commute_allowance),
+      bonus    : row.bonus ?? "あり",
+      housing  : String(!!row.housing_allowance),
+      overtime : String(!!row.overtime_allowance),
+      commute  : String(!!row.commute_allowance),
     });
+    setIsPublic(row.is_published ?? true);
   }, [row]);
 
   /* ================== 画面 ================== */
@@ -216,7 +246,9 @@ export default function HospitalPRPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1>PRページ編集</h1>
-          <p className="text-text-muted">各カードの「編集」から入力できます。保存すると Supabase の hospital_accounts に反映されます。</p>
+          <p className="text-text-muted">
+            各カードの「編集」から入力できます。保存すると Supabase の hospital_accounts に反映されます。
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
@@ -227,7 +259,11 @@ export default function HospitalPRPage() {
             プレビュー
           </button>
           <button
-            onClick={() => setIsPublic(!isPublic)}
+            onClick={async () => {
+              const next = !isPublic;
+              setIsPublic(next);
+              await save({ is_published: next });
+            }}
             className="bg-primary-500 text-white px-4 py-1 rounded-md hover:bg-primary-600 transition text-sm"
           >
             {isPublic ? "非公開にする" : "公開にする"}
@@ -275,7 +311,14 @@ export default function HospitalPRPage() {
             role="button"
             aria-label="病院ロゴをアップロード"
           >
-            {logoURL ? <img src={logoURL} alt="Logo preview" className="w-32 h-32 object-contain" /> : (<><Upload className="w-5 h-5 mb-2 text-primary-500" /><p className="text-sm">ロゴをアップロード</p></>)}
+            {logoURL ? (
+              <img src={logoURL} alt="Logo preview" className="w-32 h-32 object-contain" />
+            ) : (
+              <>
+                <Upload className="w-5 h-5 mb-2 text-primary-500" />
+                <p className="text-sm">ロゴをアップロード</p>
+              </>
+            )}
           </div>
           <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} hidden />
         </div>
@@ -291,16 +334,18 @@ export default function HospitalPRPage() {
               onClick={async () => {
                 setEditOverview(false);
                 await save({
-                  name: overview.name || null,
-                  prefecture: overview.prefecture || null,
-                  address: overview.address || null,
-                  region: overview.region || null,
-                  city: overview.city || null,
-                  facility_type: (overview.facility_type as HospitalAccount["facility_type"]) || null,
-                  bed_count: overview.bed_count ? Number(overview.bed_count) : null,
+                  hospital_name: overview.hospital_name || null,
+                  prefecture   : overview.prefecture || null,
+                  address      : overview.address || null,
+                  region       : overview.region || null,
+                  city         : overview.city || null,
+                  facility_type: (overview.facility_type as Facility) || null,
+                  bed_count    : overview.bed_count ? Number(overview.bed_count) : null,
                   residents_first_year: overview.residents_first_year ? Number(overview.residents_first_year) : null,
-                  duty_frequency: (overview.duty_frequency as HospitalAccount["duty_frequency"]) || null,
-                  website_url: overview.website_url || null,
+                  residents_total     : overview.residents_total ? Number(overview.residents_total) : null,
+                  duty_frequency: (overview.duty_frequency as Duty) || null,
+                  website_url  : overview.website_url || null,
+                  access       : overview.access || null,
                 });
               }}
               className="bg-primary-500 text-white text-sm px-3 py-1 rounded-md flex items-center gap-1 hover:bg-primary-600 transition"
@@ -316,7 +361,7 @@ export default function HospitalPRPage() {
 
         <div className="grid md:grid-cols-2 gap-4 text-sm">
           {[
-            { key: "name", label: "病院名", ph: "例：東京中央医療センター" },
+            { key: "hospital_name", label: "病院名", ph: "例：東京中央医療センター" },
             { key: "prefecture", label: "都道府県", ph: "例：東京都" },
             { key: "address", label: "所在地", ph: "例：東京都新宿区〇〇…" },
             { key: "region", label: "エリア（地方）", ph: "例：関東" },
@@ -324,8 +369,10 @@ export default function HospitalPRPage() {
             { key: "facility_type", label: "救急区分（例：二次救急）", ph: "二次救急/三次救急/不明/どちらでも" },
             { key: "bed_count", label: "病床数", ph: "例：500" },
             { key: "residents_first_year", label: "初期研修医（1年目）", ph: "例：10" },
+            { key: "residents_total", label: "研修医（合計）", ph: "例：20" },
             { key: "duty_frequency", label: "当直回数（例：3~4回）", ph: "~2回/3~4回/5回以上/特になし" },
             { key: "website_url", label: "公式サイトURL", ph: "https://..." },
+            { key: "access", label: "アクセス", ph: "例：○○駅 徒歩5分" },
           ].map((f) => (
             <div key={f.key}>
               <L>{f.label}</L>
@@ -383,29 +430,29 @@ export default function HospitalPRPage() {
       <section className="card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary-700">求人詳細</h2>
-        {editJob ? (
-          <button
-            disabled={saving}
-            onClick={async () => {
-              setEditJob(false);
-              await save({
-                salary_1st_year_min: job.salaryMin ? Number(job.salaryMin) : null,
-                salary_1st_year_max: job.salaryMax ? Number(job.salaryMax) : null,
-                bonus: (job.bonus as "あり" | "なし") ?? null,
-                housing_allowance: job.housing === "true",
-                overtime_allowance: job.overtime === "true",
-                commute_allowance: job.commute === "true",
-              });
-            }}
-            className="bg-primary-500 text-white text-sm px-3 py-1 rounded-md flex items-center gap-1 hover:bg-primary-600 transition"
-          >
-            <Save className="w-4 h-4" /> {saving ? "保存中…" : "保存"}
-          </button>
-        ) : (
-          <button onClick={() => setEditJob(true)} className="flex items-center text-primary-600 text-sm hover:underline">
-            <Pencil className="w-4 h-4 mr-1" /> 編集
-          </button>
-        )}
+          {editJob ? (
+            <button
+              disabled={saving}
+              onClick={async () => {
+                setEditJob(false);
+                await save({
+                  salary_1st_year_min: job.salaryMin ? Number(job.salaryMin) : null,
+                  salary_1st_year_max: job.salaryMax ? Number(job.salaryMax) : null,
+                  bonus: (job.bonus as "あり" | "なし") ?? null,
+                  housing_allowance: job.housing === "true",
+                  overtime_allowance: job.overtime === "true",
+                  commute_allowance: job.commute === "true",
+                });
+              }}
+              className="bg-primary-500 text-white text-sm px-3 py-1 rounded-md flex items-center gap-1 hover:bg-primary-600 transition"
+            >
+              <Save className="w-4 h-4" /> {saving ? "保存中…" : "保存"}
+            </button>
+          ) : (
+            <button onClick={() => setEditJob(true)} className="flex items-center text-primary-600 text-sm hover:underline">
+              <Pencil className="w-4 h-4 mr-1" /> 編集
+            </button>
+          )}
         </div>
 
         <div className="grid md:grid-cols-2 gap-4 text-sm">
@@ -485,7 +532,9 @@ export default function HospitalPRPage() {
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary-700">資料アップロード</h2>
         </div>
-        <p className="text-text-muted text-sm">PDFや画像などを追加できます（いまはローカルプレビューのみ／保存対象外）。</p>
+        <p className="text-text-muted text-sm">
+          PDFや画像などを追加できます（いまはローカルプレビューのみ／保存対象外）。
+        </p>
 
         <DocsManager />
       </section>

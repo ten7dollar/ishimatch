@@ -87,9 +87,9 @@ export default function StudentHospitalSearchPage() {
     setLoading(true);
     try {
       let q = supabase
-        .from("hospitals")
+        .from("hospitals_resolved")
         .select(
-          "id,name,prefecture,region,city,facility_type,bed_count,residents_first_year,salary_1st_year_min,salary_1st_year_max,duty_frequency,website_url",
+          "*",
           { count: "exact" }
         )
         .limit(200);

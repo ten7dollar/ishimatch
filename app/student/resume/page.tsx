@@ -3,50 +3,30 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-/** Supabase students の型（必要最小限 + 追加カラム） */
-type StudentRow = {
+/** students テーブルのうち、レジュメで扱うカラムのみ */
+type StudentResume = {
   id: string;
-  name: string | null;
-  email: string | null;
-
-  // 基本情報
-  last_name: string | null;
-  first_name: string | null;
-  last_name_kana: string | null;
-  first_name_kana: string | null;
-  gender: string | null;
-  birthdate: string | null; // YYYY-MM-DD
-  phone: string | null;
-
-  // 住所・地域
-  region: string | null;
-  prefecture: string | null;
-
   // 学歴
   university: string | null;
   faculty: string | null;
-  enroll_year: number | null; // 追加
+  enroll_year: number | null;
   grad_year: number | null;
-  gpa: number | null;         // 追加
+  gpa: number | null;
 
-  // 希望
-  duty_preference: string | null;  // "可能" | "相談" | "不可"
+  // 希望・条件
+  duty_preference: string | null;   // "可能" | "相談" | "不可"
   desired_salary_min: number | null;
-  major: string | null;            // カンマ区切りで保存
+  major: string | null;             // カンマ区切り or text[]
 
-  // 自己PRなど
-  self_pr: string | null;          // 追加
-  motivation: string | null;       // 追加
+  // 自己PR
+  motivation: string | null;
+  self_pr: string | null;
 
-  // 任意の書類URL
+  // 任意の書類
   transcript_url: string | null;
   certificate_url: string | null;
-
-  // JSON 拡張フィールド（将来用）
-  preferences: any;
 };
 
-/** 小さなUI部品 */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="border rounded-xl p-5 bg-white shadow-sm space-y-4">
@@ -55,11 +35,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
     </section>
   );
 }
+
 function Field({
   label, value, onChange, ph, type = "text",
-}: {
-  label: string; value: string; onChange: (v: string) => void; ph?: string; type?: string;
-}) {
+}: { label: string; value: string; onChange: (v: string) => void; ph?: string; type?: string }) {
   return (
     <div>
       <label className="text-sm text-gray-600">{label}</label>
@@ -73,6 +52,7 @@ function Field({
     </div>
   );
 }
+
 function TextArea({
   label, value, onChange, ph, rows = 6,
 }: { label: string; value: string; onChange: (v: string) => void; ph?: string; rows?: number }) {
@@ -90,9 +70,6 @@ function TextArea({
   );
 }
 
-/* =========================================================
-   レジュメ本体（students に直接 upsert）
-========================================================= */
 export default function ResumePage() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
 
@@ -100,20 +77,7 @@ export default function ResumePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  /** ====== 入力 State（students カラムを網羅） ====== */
-  // 基本情報
-  const [lastName, setLastName] = useState("");
-  const [firstName, setFirstName] = useState("");
-  const [lastKana, setLastKana] = useState("");
-  const [firstKana, setFirstKana] = useState("");
-  const [gender, setGender] = useState("");
-  const [birthdate, setBirthdate] = useState(""); // yyyy-mm-dd
-  const [phone, setPhone] = useState("");
-
-  // 住所・地域
-  const [region, setRegion] = useState("");
-  const [prefecture, setPrefecture] = useState("");
-
+  // ===== レジュメで扱う state =====
   // 学歴
   const [university, setUniversity] = useState("");
   const [faculty, setFaculty] = useState("");
@@ -121,10 +85,10 @@ export default function ResumePage() {
   const [gradYear, setGradYear] = useState<string>("");
   const [gpa, setGpa] = useState<string>("");
 
-  // 希望
-  const [duty, setDuty] = useState(""); // 可能/相談/不可
+  // 希望・条件
+  const [duty, setDuty] = useState("");               // "可能" | "相談" | "不可"
   const [desiredSalaryMin, setDesiredSalaryMin] = useState<string>("");
-  const [major, setMajor] = useState(""); // カンマ区切り（救急科,総合診療…）
+  const [major, setMajor] = useState("");            // カンマ区切りで保持
 
   // 自己PR
   const [motivation, setMotivation] = useState("");
@@ -134,11 +98,11 @@ export default function ResumePage() {
   const [transcriptUrl, setTranscriptUrl] = useState("");
   const [certificateUrl, setCertificateUrl] = useState("");
 
-  /** ====== タブ ====== */
-  const tabs = ["基本情報", "学歴", "経験", "スキル・自己PR"] as const;
-  const [tab, setTab] = useState<(typeof tabs)[number]>("基本情報");
+  // タブ（基本情報は削除）
+  const tabs = ["学歴", "希望条件", "自己PR・書類"] as const;
+  const [tab, setTab] = useState<(typeof tabs)[number]>("学歴");
 
-  /** ====== 読み込み ====== */
+  /** ===== 取得 ===== */
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -146,7 +110,6 @@ export default function ResumePage() {
       if (!user) return;
       setUid(user.id);
 
-      // 既存行を取得、なければ on-board 相当で作成
       const { data, error } = await supabase
         .from("students")
         .select("*")
@@ -154,45 +117,26 @@ export default function ResumePage() {
         .maybeSingle();
       if (error) throw error;
 
-      const row: StudentRow =
-        (data as StudentRow) ??
-        (await (async () => {
-          await supabase.from("students").upsert({
-            id: user.id,
-            email: user.email ?? null,
-            name: (user.user_metadata?.full_name || user.user_metadata?.name || null) as string | null,
-          });
-          const { data: created } = await supabase.from("students").select("*").eq("id", user.id).maybeSingle();
-          return created as StudentRow;
-        })());
+      const row = data as Partial<StudentResume> | null;
 
-      // 既存値で初期化（オンボの値も反映）
-      setLastName(row.last_name ?? "");
-      setFirstName(row.first_name ?? "");
-      setLastKana(row.last_name_kana ?? "");
-      setFirstKana(row.first_name_kana ?? "");
-      setGender(row.gender ?? "");
-      setBirthdate(row.birthdate ?? "");
-      setPhone(row.phone ?? user.phone ?? "");
-
-      setRegion(row.region ?? "");
-      setPrefecture(row.prefecture ?? "");
-
-      setUniversity(row.university ?? "");
-      setFaculty(row.faculty ?? "");
-      setEnrollYear(row.enroll_year != null ? String(row.enroll_year) : "");
-      setGradYear(row.grad_year != null ? String(row.grad_year) : "");
-      setGpa(row.gpa != null ? String(row.gpa) : "");
-
-      setDuty(row.duty_preference ?? "");
-      setDesiredSalaryMin(row.desired_salary_min != null ? String(row.desired_salary_min) : "");
-      setMajor(row.major ?? "");
-
-      setMotivation(row.motivation ?? "");
-      setSelfPr(row.self_pr ?? "");
-
-      setTranscriptUrl(row.transcript_url ?? "");
-      setCertificateUrl(row.certificate_url ?? "");
+      // 初回のユーザーは空を作る
+      if (!row) {
+        await supabase.from("students").upsert({ id: user.id, email: user.email ?? null });
+      } else {
+        // レジュメ項目だけ初期値セット
+        setUniversity(row.university ?? "");
+        setFaculty(row.faculty ?? "");
+        setEnrollYear(row.enroll_year != null ? String(row.enroll_year) : "");
+        setGradYear(row.grad_year != null ? String(row.grad_year) : "");
+        setGpa(row.gpa != null ? String(row.gpa) : "");
+        setDuty(row.duty_preference ?? "");
+        setDesiredSalaryMin(row.desired_salary_min != null ? String(row.desired_salary_min) : "");
+        setMajor(row.major ?? "");
+        setMotivation(row.motivation ?? "");
+        setSelfPr(row.self_pr ?? "");
+        setTranscriptUrl(row.transcript_url ?? "");
+        setCertificateUrl(row.certificate_url ?? "");
+      }
     } finally {
       setLoading(false);
     }
@@ -200,58 +144,37 @@ export default function ResumePage() {
 
   useEffect(() => { load(); }, [load]);
 
-  /** ====== 保存 ====== */
+  /** ===== 保存（レジュメ項目だけ upsert） ===== */
   const save = useCallback(async () => {
     if (!uid) return;
     setSaving(true);
     try {
-      const payload: Partial<StudentRow> = {
+      const payload: Partial<StudentResume> = {
         id: uid,
-
-        last_name: lastName || null,
-        first_name: firstName || null,
-        last_name_kana: lastKana || null,
-        first_name_kana: firstKana || null,
-        gender: gender || null,
-        birthdate: birthdate || null,
-        phone: phone || null,
-
-        region: region || null,
-        prefecture: prefecture || null,
-
         university: university || null,
         faculty: faculty || null,
         enroll_year: enrollYear ? Number(enrollYear) : null,
         grad_year: gradYear ? Number(gradYear) : null,
         gpa: gpa ? Number(gpa) : null,
-
         duty_preference: duty || null,
         desired_salary_min: desiredSalaryMin ? Number(desiredSalaryMin) : null,
         major: major || null,
-
         motivation: motivation || null,
         self_pr: selfPr || null,
-
         transcript_url: transcriptUrl || null,
         certificate_url: certificateUrl || null,
-
-        // 任意：更新日時
-        // updated_at: new Date().toISOString(),
       };
 
       const { error } = await supabase.from("students").upsert(payload);
       if (error) throw error;
+
       alert("保存しました。");
     } catch (e: any) {
-      alert(`保存に失敗しました：${e?.message ?? "unknown"}`);
+      alert(`保存に失敗しました: ${e?.message ?? "unknown error"}`);
     } finally {
       setSaving(false);
     }
-  }, [
-    uid, lastName, firstName, lastKana, firstKana, gender, birthdate, phone,
-    region, prefecture, university, faculty, enrollYear, gradYear, gpa,
-    duty, desiredSalaryMin, major, motivation, selfPr, transcriptUrl, certificateUrl, supabase
-  ]);
+  }, [uid, university, faculty, enrollYear, gradYear, gpa, duty, desiredSalaryMin, major, motivation, selfPr, transcriptUrl, certificateUrl, supabase]);
 
   if (loading) {
     return <main className="max-w-5xl mx-auto p-6 text-sm text-gray-600">読込中…</main>;
@@ -260,11 +183,11 @@ export default function ResumePage() {
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
       <h1 className="text-lg font-bold">レジュメを作る</h1>
-      <p className="text-text-muted">入力して保存すると、病院の検索・閲覧に活用されます。</p>
+      <p className="text-gray-600">学歴・希望条件・自己PRを編集して保存できます。氏名や住所などの基本情報は「アカウント設定」で編集してください。</p>
 
       {/* タブ */}
       <div className="flex items-center gap-3 overflow-x-auto pb-2">
-        {(["基本情報","学歴","経験","スキル・自己PR"] as const).map((t) => (
+        {tabs.map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -280,68 +203,39 @@ export default function ResumePage() {
         </div>
       </div>
 
-      {/* 入力本体 */}
-      {tab === "基本情報" && (
-        <Section title="基本情報">
-          <div className="grid md:grid-cols-2 gap-3">
-            <Field label="姓" value={lastName} onChange={setLastName} />
-            <Field label="名" value={firstName} onChange={setFirstName} />
-            <Field label="姓（かな）" value={lastKana} onChange={setLastKana} />
-            <Field label="名（かな）" value={firstKana} onChange={setFirstKana} />
-            <Field label="性別" value={gender} onChange={setGender} />
-            <Field label="生年月日（YYYY-MM-DD）" value={birthdate} onChange={setBirthdate} ph="1998-08-05" />
-            <Field label="電話番号" value={phone} onChange={setPhone} />
-          </div>
-
-          <div className="grid md:grid-cols-2 gap-3 mt-4">
-            <Field label="地域（地方）" value={region} onChange={setRegion} ph="例：関東" />
-            <Field label="都道府県" value={prefecture} onChange={setPrefecture} ph="例：東京都" />
-          </div>
-        </Section>
-      )}
-
+      {/* === 学歴 === */}
       {tab === "学歴" && (
         <Section title="学歴">
           <div className="grid md:grid-cols-2 gap-3">
             <Field label="大学名" value={university} onChange={setUniversity} ph="例：京都大学" />
             <Field label="学部・学科" value={faculty} onChange={setFaculty} ph="例：医学部医学科" />
-            <Field label="入学年" value={enrollYear} onChange={setEnrollYear} ph="例：2019" type="number" />
-            <Field label="卒業予定年" value={gradYear} onChange={setGradYear} ph="例：2026" type="number" />
+            <Field label="入学年（西暦）" value={enrollYear} onChange={setEnrollYear} ph="例：2019" type="number" />
+            <Field label="卒業予定年（西暦）" value={gradYear} onChange={setGradYear} ph="例：2026" type="number" />
             <Field label="GPA" value={gpa} onChange={setGpa} ph="例：3.8" />
           </div>
-
-          <div className="text-right">
-            <button onClick={save} className="px-4 py-2 bg-primary-600 text-white rounded text-sm">保存する</button>
-          </div>
         </Section>
       )}
 
-      {tab === "経験" && (
-        <Section title="経験（希望条件）">
+      {/* === 希望条件 === */}
+      {tab === "希望条件" && (
+        <Section title="希望条件">
           <div className="grid md:grid-cols-2 gap-3">
-            <Field label="志望診療科（カンマ区切り）" value={major} onChange={setMajor} ph="救急科,総合診療科" />
-            <Field label="希望年収（最低・万円）" value={desiredSalaryMin} onChange={setDesiredSalaryMin} ph="500" type="number" />
-            <Field label="当直可否（可能/相談/不可）" value={duty} onChange={setDuty} ph="可能" />
-          </div>
-
-          <div className="text-right mt-2">
-            <button onClick={save} className="px-4 py-2 bg-primary-600 text-white rounded text-sm">保存する</button>
+            <Field label="志望診療科（カンマ区切り）" value={major} onChange={setMajor} ph="例：救急科,総合診療科" />
+            <Field label="希望年収（最低/万円）" value={desiredSalaryMin} onChange={setDesiredSalaryMin} ph="例：500" type="number" />
+            <Field label="当直可否（可能/相談/不可）" value={duty} onChange={setDuty} ph="例：可能" />
           </div>
         </Section>
       )}
 
-      {tab === "スキル・自己PR" && (
-        <Section title="スキル・自己PR">
-          <TextArea label="志望動機" value={motivation} onChange={setMotivation} rows={8} ph="600字以内" />
-          <TextArea label="自己PR" value={selfPr} onChange={setSelfPr} rows={10} ph="600字以内" />
+      {/* === 自己PR === */}
+      {tab === "自己PR・書類" && (
+        <Section title="自己PR と 書類URL（任意）">
+          <TextArea label="志望動機" value={motivation} onChange={setMotivation} rows={8} ph="600字以内で記載してください" />
+          <TextArea label="自己PR" value={selfPr} onChange={setSelfPr} rows={10} ph="これまでの経験・強み・熱意など" />
 
-          <div className="grid md:grid-cols-2 gap-3 mt-4">
-            <Field label="成績証明書URL（任意）" value={transcriptUrl} onChange={setTranscriptUrl} />
-            <Field label="資格証明書URL（任意）" value={certificateUrl} onChange={setCertificateUrl} />
-          </div>
-
-          <div className="text-right mt-3">
-            <button onClick={save} className="px-4 py-2 bg-primary-600 text-white rounded text-sm">保存する</button>
+          <div className="grid md:grid-cols-2 gap-3">
+            <Field label="成績証明書 URL" value={transcriptUrl} onChange={setTranscriptUrl} ph="https://..." />
+            <Field label="資格証明書 URL" value={certificateUrl} onChange={setCertificateUrl} ph="https://..." />
           </div>
         </Section>
       )}

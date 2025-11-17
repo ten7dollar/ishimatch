@@ -3,24 +3,20 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useScoutsOutbox } from "../../_providers/scout-outbox";
+import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 // ★ このページはサーバーでの事前レンダリングをやめてCSRにする（ビルド安定化）
 export const dynamic = "force-dynamic";
 
 const MAX = 400;
 
+/** students から最小限取得する型 */
 type StudentDetail = {
   id: string;
   name: string;
-  email?: string;
-  university: string;
-  gradYear: string;
-  area: string[];
-  major: string[];
-  desiredSalary: string;
-  duty: "可能" | "相談" | "不可";
-  pr: string;
+  email?: string | null;
+  university?: string | null;
+  grad_year?: number | null;
 };
 
 // ---- ラッパー（Suspenseで包む） ----
@@ -36,47 +32,111 @@ export default function Page() {
 function ScoutSendForm() {
   const router = useRouter();
   const sp = useSearchParams();
-  const { sendScout } = useScoutsOutbox();
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
 
   const studentId = sp.get("studentId") || "";
 
-  // 送信先学生（本番はAPIで studentId から取得）
-  const student: StudentDetail | null = useMemo(() => {
-    if (!studentId) return null;
-    return getMockStudent(studentId);
-  }, [studentId]);
+  // 送信先学生
+  const [student, setStudent] = useState<StudentDetail | null>(null);
+  const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    (async () => {
+      if (!studentId) {
+        setStudent(null);
+        setLoading(false);
+        return;
+      }
+      try {
+        setLoading(true);
+        // students から最小情報を取得
+        const { data, error } = await supabase
+          .from("students")
+          .select("id,name,email,university,grad_year")
+          .eq("id", studentId)
+          .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+          setStudent(null);
+        } else {
+          setStudent({
+            id: data.id,
+            name: data.name ?? "（氏名未登録）",
+            email: data.email ?? null,
+            university: data.university ?? null,
+            grad_year: data.grad_year ?? null,
+          });
+        }
+      } catch (e: any) {
+        console.error("[scout-new] load student error:", e?.message || e);
+        setStudent(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [supabase, studentId]);
+
+  // フォーム入力
   const [message, setMessage] = useState("");
   const [count, setCount] = useState(0);
   const [busy, setBusy] = useState(false);
-
   useEffect(() => setCount(message.length), [message]);
 
-  const disabled = !student || count === 0 || count > MAX || busy;
+  const disabled = !student || loading || count === 0 || count > MAX || busy;
 
+  // 送信
   const handleSend = async () => {
     if (disabled || !student) return;
     try {
       setBusy(true);
-      // MVP：送付履歴として学生情報のみ登録（本文は保存しない）
-      sendScout({
-        studentId: student.id,
-        studentName: student.name,
-        university: student.university,
-        gradYear: student.gradYear,
-      });
+
+      // 認証チェック（= 病院の本人）
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("ログインが必要です。");
+        return;
+      }
+      const hospitalId = user.id;
+
+      // scout_invitations に insert（RLS: with check auth.uid() = hospital_id）
+      const { error } = await supabase
+        .from("scout_invitations")
+        .insert({
+          hospital_id: hospitalId,
+          student_id: student.id,
+          status: "sent",
+          message,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
       alert(`「${student.name}」へスカウトを送信しました`);
       router.push("/hospital/scouts");
+    } catch (e: any) {
+      console.error("[scout-new] send error:", e?.message || e);
+      alert(`送信に失敗しました：${e?.message ?? "unknown"}`);
     } finally {
       setBusy(false);
     }
   };
 
+  if (loading) {
+    return (
+      <main className="max-w-4xl mx-auto p-6">
+        <p className="text-sm text-gray-500">読み込み中…</p>
+      </main>
+    );
+  }
+
   if (!student) {
     return (
       <main className="max-w-4xl mx-auto p-6 space-y-6">
         <h1 className="text-2xl font-bold">スカウト送信</h1>
-        <p className="text-gray-600">studentId が指定されていないため、送信先が見つかりませんでした。</p>
+        <p className="text-gray-600">
+          studentId が指定されていないか、学生が見つかりませんでした。
+        </p>
         <div>
           <Link href="/hospital/students" className="text-primary-600 underline">
             学生検索へ戻る
@@ -107,35 +167,27 @@ function ScoutSendForm() {
               </div>
               <div>
                 <div className="font-semibold">{student.name}</div>
-                <div className="text-gray-600">{student.university}・{student.gradYear}年卒</div>
+                <div className="text-gray-600">
+                  {student.university ?? "—"}・{student.grad_year ?? "—"}年卒
+                </div>
               </div>
             </div>
 
             {student.email && (
               <div className="mt-2 text-gray-700">
-                <span className="text-gray-500 mr-2">メール</span>{student.email}
+                <span className="text-gray-500 mr-2">メール</span>
+                {student.email}
               </div>
             )}
+          </div>
 
-            <div className="mt-2 grid grid-cols-1 gap-1 text-gray-700">
-              <div><span className="text-gray-500">志望診療科：</span>{student.major.join("、")}</div>
-              <div><span className="text-gray-500">希望エリア：</span>{student.area.join("、")}</div>
-              <div><span className="text-gray-500">希望年収：</span>{student.desiredSalary}</div>
-              <div><span className="text-gray-500">当直：</span>{student.duty}</div>
-            </div>
-
-            <div className="mt-3 rounded border bg-gray-50 p-3 text-sm text-gray-700 whitespace-pre-wrap">
-              {student.pr}
-            </div>
-
-            <div className="mt-3">
-              <Link
-                href={`/hospital/students/${encodeURIComponent(student.id)}`}
-                className="w-full inline-flex justify-center px-3 py-2 border rounded text-sm hover:bg-primary-50 transition"
-              >
-                詳細プロフィールを見る
-              </Link>
-            </div>
+          <div className="mt-3">
+            <Link
+              href={`/hospital/students/${encodeURIComponent(student.id)}`}
+              className="w-full inline-flex justify-center px-3 py-2 border rounded text-sm hover:bg-primary-50 transition"
+            >
+              詳細プロフィールを見る
+            </Link>
           </div>
         </section>
 
@@ -160,7 +212,7 @@ function ScoutSendForm() {
           <div className="rounded bg-blue-50/50 border border-blue-100 p-3 text-sm text-blue-900">
             <p className="font-semibold mb-1">効果的なスカウトメッセージのポイント：</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>学生のプロフィールを確認し、具体的にマッチする点を伝える</li>
+              <li>学生のプロフィールを踏まえた具体的な“合いそうな点”を伝える</li>
               <li>病院の特徴や強みを簡潔に説明する</li>
               <li>次のアクション（見学、面談など）を明確にする</li>
               <li>丁寧で親しみやすい文体を心がける</li>
@@ -183,20 +235,4 @@ function ScoutSendForm() {
       </div>
     </main>
   );
-}
-
-/* ダミー取得：本番は API/DB に置き換え */
-function getMockStudent(id: string): StudentDetail {
-  return {
-    id,
-    name: "山田太郎",
-    email: "yamada@example.com",
-    university: "東京大学医学部",
-    gradYear: "2026",
-    area: ["東京都", "神奈川県"],
-    major: ["救急科", "内科"],
-    desiredSalary: "500万円以上",
-    duty: "可能",
-    pr: "救急医療に強い関心があり、初期研修では幅広い症例を経験したいと考えています。ACLSも取得済みです。",
-  };
 }

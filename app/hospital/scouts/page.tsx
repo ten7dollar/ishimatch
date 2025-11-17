@@ -1,49 +1,228 @@
+// app/hospital/scouts/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useScoutsOutbox, type ScoutOutRecord } from "../_providers/scout-outbox";
+import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-// 初回ダミーシード（必要なければ削除）
-function seedOnce(add: (rows: ScoutOutRecord[]) => void) {
-  if (typeof window === "undefined") return;
-  const FLAG = "ishimatch:seed:hospital:scouts";
-  if (localStorage.getItem(FLAG)) return;
+/* ================================
+   型
+================================= */
+type OutRow = {
+  id: string;
+  student_id: string;
+  message: string | null;
+  created_at: string;
+  read_at: string | null;
+  applied_at: string | null;
+};
 
-  const iso = (y:number,m:number,d:number,h:number,mi:number)=> new Date(y,m-1,d,h,mi).toISOString();
-  add([
-    { id:"s-001", studentId:"st-001", studentName:"山田太郎", university:"東京大学医学部", gradYear:"2026", sentAt: iso(2025,11,1,10,0), appliedAt: iso(2025,11,2,12,0), readAt: iso(2025,11,1,12,0) },
-    { id:"s-002", studentId:"st-002", studentName:"佐藤花子", university:"京都大学医学部", gradYear:"2026", sentAt: iso(2025,11,3,14,20), readAt: iso(2025,11,3,16,0) },
-    { id:"s-003", studentId:"st-003", studentName:"鈴木一郎", university:"大阪大学医学部", gradYear:"2026", sentAt: iso(2025,11,5,11,0) }, // 未読
-    { id:"s-004", studentId:"st-004", studentName:"田中美咲", university:"慶應義塾大学医学部", gradYear:"2025", sentAt: iso(2025,11,6,9,30), readAt: iso(2025,11,6,10,0) },
-    { id:"s-005", studentId:"st-005", studentName:"伊藤健太", university:"東北大学医学部", gradYear:"2025", sentAt: iso(2025,11,7,13,45), readAt: iso(2025,11,7,15,0) },
-  ]);
-  localStorage.setItem(FLAG, "1");
-}
+type StudentRow = {
+  id: string;
+  name: string | null;
+  university: string | null;
+  grad_year: number | null;
+};
 
+type RecordView = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  university: string;
+  gradYear: number | null;
+  sentAt: string;      // created_at
+  readAt: string | null;
+  appliedAt: string | null;
+  title: string;       // 1行目要約
+  body: string;        // 全文
+};
+
+type FilterKey = "all" | "unread" | "read" | "applied";
+
+export const dynamic = "force-dynamic";
+
+/* ================================
+   ページ本体
+================================= */
 export default function HospitalScoutStatusPage() {
-  const { records, sentCount, readCount, appliedCount, unreadCount, appliedRate, markRead, markUnread, markApplied, addMocks } = useScoutsOutbox();
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
 
-  useEffect(()=>{ seedOnce(addMocks); }, [addMocks]);
+  const [rows, setRows] = useState<RecordView[]>([]);
+  const [loading, setLoading] = useState(true);
 
   // 検索・フィルタ
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<"all"|"unread"|"read"|"applied">("all");
+  const [filter, setFilter] = useState<FilterKey>("all");
+
+  /** 一覧取得（2段階：scout_invitations → students） */
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      // 病院=ログインユーザー
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      // 1) 自院から送ったスカウト一覧
+      const { data: outbox, error: oerr } = await supabase
+        .from("scout_invitations")
+        .select("id,student_id,message,created_at,read_at,applied_at")
+        .eq("hospital_id", user.id)
+        .order("created_at", { ascending: false });
+      if (oerr) throw oerr;
+
+      const list = (outbox ?? []) as OutRow[];
+      if (list.length === 0) {
+        setRows([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2) 表示用に学生プロファイルをマージ
+      const studentIds = Array.from(new Set(list.map(r => r.student_id)));
+      const studentMap = new Map<string, StudentRow>();
+      if (studentIds.length > 0) {
+        const { data: stRows, error: serr } = await supabase
+          .from("students")
+          .select("id,name,university,grad_year")
+          .in("id", studentIds);
+        if (serr) throw serr;
+        (stRows ?? []).forEach((s: any) => studentMap.set(String(s.id), s as StudentRow));
+      }
+
+      const toTitle = (m: string) => {
+        const first = (m || "").split(/\r?\n/)[0]?.trim() ?? "";
+        if (!first) return "スカウトメッセージ";
+        return first.length > 40 ? first.slice(0, 40) + "…" : first;
+      };
+
+      const merged: RecordView[] = list.map((r) => {
+        const st = studentMap.get(r.student_id);
+        return {
+          id: r.id,
+          studentId: r.student_id,
+          studentName: st?.name ?? "（氏名未登録）",
+          university: st?.university ?? "—",
+          gradYear: st?.grad_year ?? null,
+          sentAt: r.created_at,
+          readAt: r.read_at,
+          appliedAt: r.applied_at,
+          title: toTitle(r.message ?? ""),
+          body: r.message ?? "",
+        };
+      });
+
+      setRows(merged);
+    } catch (e: any) {
+      console.error("[hospital-scouts] refresh error:", e?.message || e);
+      alert(`スカウト一覧の取得に失敗しました：${e?.message ?? "unknown"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** ステータス操作（既読/未読/応募済みにする） */
+  const markRead = async (id: string) => {
+    const now = new Date().toISOString();
+    const before = rows;
+    setRows(prev => prev.map(r => r.id === id ? { ...r, readAt: now } : r));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("not authed");
+      const { error } = await supabase
+        .from("scout_invitations")
+        .update({ read_at: now })
+        .eq("id", id)
+        .eq("hospital_id", user.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error("[hospital-scouts] markRead error:", (e as any)?.message);
+      setRows(before); // ロールバック
+    }
+  };
+
+  const markUnread = async (id: string) => {
+    const before = rows;
+    setRows(prev => prev.map(r => r.id === id ? { ...r, readAt: null } : r));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("not authed");
+      const { error } = await supabase
+        .from("scout_invitations")
+        .update({ read_at: null })
+        .eq("id", id)
+        .eq("hospital_id", user.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error("[hospital-scouts] markUnread error:", (e as any)?.message);
+      setRows(before);
+    }
+  };
+
+  const markApplied = async (id: string) => {
+    const now = new Date().toISOString();
+    const before = rows;
+    setRows(prev => prev.map(r => r.id === id ? { ...r, appliedAt: now } : r));
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("not authed");
+      const { error } = await supabase
+        .from("scout_invitations")
+        .update({ applied_at: now })
+        .eq("id", id)
+        .eq("hospital_id", user.id);
+      if (error) throw error;
+    } catch (e) {
+      console.error("[hospital-scouts] markApplied error:", (e as any)?.message);
+      setRows(before);
+    }
+  };
+
+  /** 初回 + Realtime購読（自院のスカウトだけ） */
+  useEffect(() => {
+    refresh();
+    let ch: ReturnType<typeof supabase.channel> | null = null;
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      ch = supabase
+        .channel(`hospital-scouts:${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "scout_invitations", filter: `hospital_id=eq.${user.id}` },
+          () => refresh()
+        )
+        .subscribe();
+    })();
+    return () => { if (ch) supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /** 集計・フィルタ・検索 */
+  const sentCount    = rows.length;
+  const readCount    = rows.filter(r => !!r.readAt).length;
+  const appliedCount = rows.filter(r => !!r.appliedAt).length;
+  const unreadCount  = sentCount - readCount;
+  const appliedRate  = sentCount === 0 ? 0 : appliedCount / sentCount;
 
   const filtered = useMemo(() => {
-    let arr = records;
+    let arr = rows;
     if (q.trim()) {
       const low = q.trim().toLowerCase();
       arr = arr.filter(r =>
-        r.studentName.toLowerCase().includes(low) ||
-        r.university.toLowerCase().includes(low)
+        (r.studentName || "").toLowerCase().includes(low) ||
+        (r.university  || "").toLowerCase().includes(low) ||
+        (String(r.gradYear || "")).includes(low)
       );
     }
-    if (filter === "unread") arr = arr.filter(r => !r.readAt);
-    if (filter === "read")   arr = arr.filter(r => !!r.readAt);
-    if (filter === "applied") arr = arr.filter(r => !!r.appliedAt);
-    return [...arr].sort((a,b)=> b.sentAt.localeCompare(a.sentAt));
-  }, [records, q, filter]);
+    if (filter === "unread")  arr = arr.filter(r => !r.readAt);
+    if (filter === "read")    arr = arr.filter(r =>  r.readAt);
+    if (filter === "applied") arr = arr.filter(r =>  r.appliedAt);
+    return [...arr].sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+  }, [rows, q, filter]);
 
   return (
     <main className="max-w-6xl mx-auto p-6 space-y-6">
@@ -63,7 +242,6 @@ export default function HospitalScoutStatusPage() {
         <span className="px-3 py-2 rounded-full bg-blue-100 text-blue-700 text-sm">i</span>
         <p className="text-sm text-blue-800">
           スカウト経由の応募率： <b>{Math.round(appliedRate*100)}%</b>（{appliedCount} / {sentCount}）
-          <span className="ml-2 text-blue-700">（非常に良好です！）</span>
         </p>
       </section>
 
@@ -73,13 +251,13 @@ export default function HospitalScoutStatusPage() {
           <input
             value={q}
             onChange={(e)=>setQ(e.target.value)}
-            placeholder="学生名、大学名で検索…"
+            placeholder="学生名、大学名、卒年で検索…"
             className="border rounded px-3 py-2 w-full md:w-80"
           />
           <div className="flex gap-2">
-            <FilterButton label="すべて" active={filter==="all"} onClick={()=>setFilter("all")} />
-            <FilterButton label="未読" active={filter==="unread"} onClick={()=>setFilter("unread")} />
-            <FilterButton label="既読" active={filter==="read"} onClick={()=>setFilter("read")} />
+            <FilterButton label="すべて"   active={filter==="all"}     onClick={()=>setFilter("all")} />
+            <FilterButton label="未読"     active={filter==="unread"}  onClick={()=>setFilter("unread")} />
+            <FilterButton label="既読"     active={filter==="read"}    onClick={()=>setFilter("read")} />
             <FilterButton label="応募済み" active={filter==="applied"} onClick={()=>setFilter("applied")} />
           </div>
         </div>
@@ -100,21 +278,24 @@ export default function HospitalScoutStatusPage() {
             <tbody>
               {filtered.map(r => (
                 <tr key={r.id} className="border-b last:border-0">
-                  <td className="py-2 px-2">{r.studentName}</td>
-                  <td className="py-2 px-2">{r.university}</td>
-                  <td className="py-2 px-2">{r.gradYear}</td>
-                  <td className="py-2 px-2">{new Date(r.sentAt).toLocaleString()}</td>
                   <td className="py-2 px-2">
-                    <StatusPill record={r} />
+                    <Link href={`/hospital/students/${encodeURIComponent(r.studentId)}`} className="text-primary-700 font-semibold hover:underline">
+                      {r.studentName}
+                    </Link>
                   </td>
+                  <td className="py-2 px-2">{r.university}</td>
+                  <td className="py-2 px-2">{r.gradYear ?? "—"}</td>
+                  <td className="py-2 px-2">{new Date(r.sentAt).toLocaleString()}</td>
+                  <td className="py-2 px-2"><StatusPill read={!!r.readAt} applied={!!r.appliedAt} /></td>
                   <td className="py-2 px-2">
                     <div className="flex items-center justify-end gap-2">
                       {r.readAt
                         ? <button onClick={()=>markUnread(r.id)} className="px-2 py-1 text-xs rounded border">未読に戻す</button>
-                        : <button onClick={()=>markRead(r.id)} className="px-2 py-1 text-xs rounded border">既読にする</button>
-                      }
+                        : <button onClick={()=>markRead(r.id)}   className="px-2 py-1 text-xs rounded border">既読にする</button>}
                       {!r.appliedAt && (
-                        <button onClick={()=>markApplied(r.id)} className="px-2 py-1 text-xs rounded bg-green-600 text-white">応募済みにする</button>
+                        <button onClick={()=>markApplied(r.id)} className="px-2 py-1 text-xs rounded bg-green-600 text-white">
+                          応募済みにする
+                        </button>
                       )}
                       <Link href={`/hospital/students/${encodeURIComponent(r.studentId)}`} className="px-2 py-1 text-xs rounded border">
                         詳細
@@ -123,7 +304,7 @@ export default function HospitalScoutStatusPage() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr><td colSpan={6} className="py-6 text-center text-gray-500">該当するスカウトがありません</td></tr>
               )}
             </tbody>
@@ -134,6 +315,9 @@ export default function HospitalScoutStatusPage() {
   );
 }
 
+/* ================================
+   小さな部品
+================================= */
 function StatCard({ title, value, chip }: { title:string; value:number; chip?:string }) {
   return (
     <div className="rounded-xl border bg-white p-4">
@@ -155,12 +339,8 @@ function FilterButton({ label, active, onClick }: { label:string; active:boolean
     </button>
   );
 }
-function StatusPill({ record }: { record: ScoutOutRecord }) {
-  if (record.appliedAt) {
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">応募済み</span>;
-  }
-  if (record.readAt) {
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-700">既読</span>;
-  }
-  return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">未読</span>;
+function StatusPill({ read, applied }: { read:boolean; applied:boolean }) {
+  if (applied) return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700">応募済み</span>;
+  if (read)    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100  text-blue-700">既読</span>;
+  return             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100  text-gray-600">未読</span>;
 }

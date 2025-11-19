@@ -52,7 +52,7 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                     width={160}
                     height={52}
                     priority={false}
-                    className="h-12 w-auto"
+                    className="h-16 w-auto"
                   />
                 </Link>
               </div>

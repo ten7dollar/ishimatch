@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 
@@ -20,12 +21,27 @@ const navItems = [
   { href: "/hospital/account",      label: "アカウント管理" },
 ];
 
-function HospitalHeaderName() {
+function HeaderBrand() {
   const { displayName, loading } = useUserProfile();
   return (
-    <Link href="/hospital/dashboard" className="text-lg font-semibold text-primary-700 hover:underline">
-      {loading ? "…" : displayName || "アカウント"}
-    </Link>
+    <div className="flex items-center gap-3">
+      <Link href="/hospital/dashboard" className="inline-flex items-center">
+        <Image
+          src="/brand/regimatch-logo.svg"
+          alt="レジマッチ"
+          width={112}
+          height={40}
+          priority={false}
+          className="h-8 w-auto"
+        />
+      </Link>
+      <Link
+        href="/hospital/dashboard"
+        className="text-sm md:text-base font-medium text-primary-700 hover:underline"
+      >
+        {loading ? "…" : displayName || "アカウント"}
+      </Link>
+    </div>
   );
 }
 
@@ -40,7 +56,16 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             {/* サイドバー */}
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
-                <h1 className="font-bold text-lg text-primary-700">医志MATCH hospital</h1>
+                <Link href="/hospital/dashboard" className="inline-flex items-center">
+                  <Image
+                    src="/brand/regimatch-logo.svg"
+                    alt="レジマッチ"
+                    width={128}
+                    height={44}
+                    priority={false}
+                    className="h-9 w-auto"
+                  />
+                </Link>
               </div>
               <nav className="flex-1 p-2 space-y-1">
                 {navItems.map((item) => {
@@ -50,7 +75,9 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                       key={item.href}
                       href={item.href}
                       className={`block px-3 py-2 rounded-md text-sm font-medium transition ${
-                        active ? "bg-primary-500 text-white" : "text-text hover:bg-primary-50 hover:text-primary-700"
+                        active
+                          ? "bg-primary-500 text-white"
+                          : "text-text hover:bg-primary-50 hover:text-primary-700"
                       }`}
                     >
                       {item.label}
@@ -63,7 +90,7 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             {/* メイン */}
             <div className="flex-1 flex flex-col">
               <header className="w-full bg-white border-b flex justify-between items-center px-8 py-3">
-                <HospitalHeaderName />
+                <HeaderBrand />
 
                 <div className="flex items-center gap-6">
                   {/* ステータス（装飾） */}
@@ -73,13 +100,20 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                   </div>
 
                   {/* 通知 → 応募管理へ */}
-                  <Link href="/hospital/applications" title="応募管理へ" className="relative p-2 rounded-full hover:bg-primary-50 transition">
+                  <Link
+                    href="/hospital/applications"
+                    title="応募管理へ"
+                    className="relative p-2 rounded-full hover:bg-primary-50 transition"
+                  >
                     <Bell className="w-5 h-5 text-primary-600" />
                     <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                   </Link>
 
                   {/* アカウント */}
-                  <Link href="/hospital/account" className="text-primary-600 hover:underline text-sm font-medium">
+                  <Link
+                    href="/hospital/account"
+                    className="text-primary-600 hover:underline text-sm font-medium"
+                  >
                     マイアカウント
                   </Link>
 

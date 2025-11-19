@@ -21,27 +21,15 @@ const navItems = [
   { href: "/hospital/account",      label: "アカウント管理" },
 ];
 
-function HeaderBrand() {
+function HospitalHeaderName() {
   const { displayName, loading } = useUserProfile();
   return (
-    <div className="flex items-center gap-3">
-      <Link href="/hospital/dashboard" className="inline-flex items-center">
-        <Image
-          src="/brand/regimatch-logo.svg"
-          alt="レジマッチ"
-          width={140}
-          height={50}
-          priority={false}
-          className="h-8 w-auto"
-        />
-      </Link>
-      <Link
-        href="/hospital/dashboard"
-        className="text-sm md:text-base font-medium text-primary-700 hover:underline"
-      >
-        {loading ? "…" : displayName || "アカウント"}
-      </Link>
-    </div>
+    <Link
+      href="/hospital/dashboard"
+      className="text-lg font-semibold text-primary-700 hover:underline"
+    >
+      {loading ? "…" : displayName || "アカウント"}
+    </Link>
   );
 }
 
@@ -57,16 +45,18 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
                 <Link href="/hospital/dashboard" className="inline-flex items-center">
+                  {/* ★ ロゴサイズは h-12 を基準に調整（h-14 / h-16 など） */}
                   <Image
                     src="/brand/regimatch-logo.svg"
                     alt="レジマッチ"
-                    width={256}
-                    height={88}
+                    width={160}
+                    height={52}
                     priority={false}
-                    className="h-9 w-auto"
+                    className="h-12 w-auto"
                   />
                 </Link>
               </div>
+
               <nav className="flex-1 p-2 space-y-1">
                 {navItems.map((item) => {
                   const active = pathname.startsWith(item.href);
@@ -90,7 +80,8 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
             {/* メイン */}
             <div className="flex-1 flex flex-col">
               <header className="w-full bg-white border-b flex justify-between items-center px-8 py-3">
-                <HeaderBrand />
+                {/* ヘッダーは名前のみ（ロゴなし） */}
+                <HospitalHeaderName />
 
                 <div className="flex items-center gap-6">
                   {/* ステータス（装飾） */}

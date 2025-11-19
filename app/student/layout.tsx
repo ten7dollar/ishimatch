@@ -39,25 +39,13 @@ function BellWithBadge() {
   );
 }
 
-function HeaderBrand() {
-  // ロゴ + ユーザー表示名（小さめ）
+function StudentHeaderName() {
   const { displayName, loading } = useUserProfile();
-
   return (
-    <div className="flex items-center gap-3">
-      <Link href="/student/dashboard" className="inline-flex items-center">
-        <Image
-          src="/brand/regimatch-logo.svg"
-          alt="レジマッチ"
-          width={112}
-          height={40}
-          priority={false}
-          className="h-8 w-auto"
-        />
-      </Link>
+    <div className="flex items-center gap-2">
       <Link
         href="/student/dashboard"
-        className="text-sm md:text-base font-medium text-primary-700 hover:underline"
+        className="text-lg font-semibold text-primary-700 hover:underline"
       >
         {loading ? "…" : displayName || "アカウント"}
       </Link>
@@ -73,20 +61,22 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
       <FavoriteHospitalsProvider>
         <UserProfileProvider>
           <div className="min-h-screen flex bg-background">
-            {/* サイドバー（PC） */}
+            {/* サイドバー */}
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
                 <Link href="/student/dashboard" className="inline-flex items-center">
+                  {/* ★ ロゴサイズは h-12 を中心に、h-14 / h-16 にするとさらに大きく表示 */}
                   <Image
                     src="/brand/regimatch-logo.svg"
                     alt="レジマッチ"
-                    width={128}
-                    height={44}
+                    width={160}
+                    height={52}
                     priority={false}
-                    className="h-9 w-auto"
+                    className="h-12 w-auto"
                   />
                 </Link>
               </div>
+
               <nav className="flex-1 p-2 space-y-1">
                 {navItems.map((item) => {
                   const active = pathname.startsWith(item.href);
@@ -109,9 +99,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
 
             {/* メイン */}
             <div className="flex-1 flex flex-col">
-              {/* ヘッダー */}
               <header className="w-full bg-white border-b flex items-center justify-between px-4 md:px-8 py-3">
-                <HeaderBrand />
+                {/* ヘッダーは名前のみ（ロゴなし） */}
+                <StudentHeaderName />
                 <div className="flex items-center gap-4">
                   <BellWithBadge />
                   <Link
@@ -125,12 +115,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 </div>
               </header>
 
-              {/* コンテンツ */}
-              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">
-                {children}
-              </main>
-
-              {/* モバイルタブバー */}
+              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">{children}</main>
               <StudentMobileTabBar />
             </div>
           </div>

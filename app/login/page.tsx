@@ -56,11 +56,11 @@ export default function LoginPage() {
           <Image
             src="/brand/regimatch-logo.svg"
             alt="レジマッチ"
-            height={40}
-            width={112}         // ロゴの横幅は見た目に合わせて微調整OK
+            height={44}
+            width={123}         // ロゴの横幅は見た目に合わせて微調整OK
             priority
           />
-          <p className="text-text-muted text-sm mt-2">志に合う病院に出会える。</p>
+          <p className="text-text-muted text-sm mt-2">初期研修医マッチングプラットフォーム</p>
         </div>
 
         {/* ロール切替（既存UI） */}

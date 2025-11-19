@@ -29,8 +29,8 @@ function HeaderBrand() {
         <Image
           src="/brand/regimatch-logo.svg"
           alt="レジマッチ"
-          width={112}
-          height={40}
+          width={140}
+          height={50}
           priority={false}
           className="h-8 w-auto"
         />
@@ -60,8 +60,8 @@ export default function HospitalLayout({ children }: { children: ReactNode }) {
                   <Image
                     src="/brand/regimatch-logo.svg"
                     alt="レジマッチ"
-                    width={128}
-                    height={44}
+                    width={256}
+                    height={88}
                     priority={false}
                     className="h-9 w-auto"
                   />

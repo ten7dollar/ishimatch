@@ -72,7 +72,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                     width={160}
                     height={52}
                     priority={false}
-                    className="h-16 w-auto"
+                    className="h-12 w-auto"
                   />
                 </Link>
               </div>

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
+import UploadDocuments from "./_components/UploadDocuments";
 
-/** students テーブルのうち、レジュメで扱うカラムのみ */
+/** students テーブルのうち、レジュメで扱うカラムのみ（URLカラムは未使用に） */
 type StudentResume = {
   id: string;
   // 学歴
@@ -21,10 +22,6 @@ type StudentResume = {
   // 自己PR
   motivation: string | null;
   self_pr: string | null;
-
-  // 任意の書類
-  transcript_url: string | null;
-  certificate_url: string | null;
 };
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -94,10 +91,6 @@ export default function ResumePage() {
   const [motivation, setMotivation] = useState("");
   const [selfPr, setSelfPr] = useState("");
 
-  // 任意の書類URL
-  const [transcriptUrl, setTranscriptUrl] = useState("");
-  const [certificateUrl, setCertificateUrl] = useState("");
-
   // タブ（基本情報は削除）
   const tabs = ["学歴", "希望条件", "自己PR・書類"] as const;
   const [tab, setTab] = useState<(typeof tabs)[number]>("学歴");
@@ -134,8 +127,6 @@ export default function ResumePage() {
         setMajor(row.major ?? "");
         setMotivation(row.motivation ?? "");
         setSelfPr(row.self_pr ?? "");
-        setTranscriptUrl(row.transcript_url ?? "");
-        setCertificateUrl(row.certificate_url ?? "");
       }
     } finally {
       setLoading(false);
@@ -161,8 +152,6 @@ export default function ResumePage() {
         major: major || null,
         motivation: motivation || null,
         self_pr: selfPr || null,
-        transcript_url: transcriptUrl || null,
-        certificate_url: certificateUrl || null,
       };
 
       const { error } = await supabase.from("students").upsert(payload);
@@ -174,7 +163,7 @@ export default function ResumePage() {
     } finally {
       setSaving(false);
     }
-  }, [uid, university, faculty, enrollYear, gradYear, gpa, duty, desiredSalaryMin, major, motivation, selfPr, transcriptUrl, certificateUrl, supabase]);
+  }, [uid, university, faculty, enrollYear, gradYear, gpa, duty, desiredSalaryMin, major, motivation, selfPr, supabase]);
 
   if (loading) {
     return <main className="max-w-5xl mx-auto p-6 text-sm text-gray-600">読込中…</main>;
@@ -183,7 +172,7 @@ export default function ResumePage() {
   return (
     <main className="max-w-5xl mx-auto p-6 space-y-6">
       <h1 className="text-lg font-bold">レジュメを作る</h1>
-      <p className="text-gray-600">学歴・希望条件・自己PRを編集して保存できます。氏名や住所などの基本情報は「アカウント設定」で編集してください。</p>
+      <p className="text-gray-600">学歴・希望条件・自己PRを編集して保存できます。書類はこの画面からアップロードできます。</p>
 
       {/* タブ */}
       <div className="flex items-center gap-3 overflow-x-auto pb-2">
@@ -227,15 +216,17 @@ export default function ResumePage() {
         </Section>
       )}
 
-      {/* === 自己PR === */}
+      {/* === 自己PR + 書類アップロード === */}
       {tab === "自己PR・書類" && (
-        <Section title="自己PR と 書類URL（任意）">
+        <Section title="自己PR と 提出書類">
           <TextArea label="志望動機" value={motivation} onChange={setMotivation} rows={8} ph="600字以内で記載してください" />
           <TextArea label="自己PR" value={selfPr} onChange={setSelfPr} rows={10} ph="これまでの経験・強み・熱意など" />
 
-          <div className="grid md:grid-cols-2 gap-3">
-            <Field label="成績証明書 URL" value={transcriptUrl} onChange={setTranscriptUrl} ph="https://..." />
-            <Field label="資格証明書 URL" value={certificateUrl} onChange={setCertificateUrl} ph="https://..." />
+          {/* ここを URL 入力ではなくファイル選択 UI に置き換え */}
+          <div className="pt-4">
+            <h3 className="text-sm font-semibold text-primary-700 mb-2">提出書類</h3>
+            {/* 学生IDを渡して documents/{uid}/ に保存 */}
+            <UploadDocuments studentId={uid} />
           </div>
         </Section>
       )}

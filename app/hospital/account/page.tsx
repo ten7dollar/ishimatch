@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Lock, Save, Pencil, CheckCircle } from "lucide-react";
+import { Lock, Save, Pencil, CheckCircle, Trash2, Image as ImageIcon } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 type HospitalAccountRow = {
@@ -14,6 +14,9 @@ type HospitalAccountRow = {
   contact_email: string | null;
 
   is_published: boolean | null;
+
+  // ★ 画像パス（例：avatars/{uid}/avatar.png）
+  avatar_url: string | null;
 };
 
 export default function HospitalAccountPage() {
@@ -32,9 +35,26 @@ export default function HospitalAccountPage() {
   // 公開フラグ
   const [isPublished, setIsPublished] = useState<boolean>(true);
 
+  // ---- プロフィール画像（path / preview）----
+  const [avatarPath, setAvatarPath] = useState<string>("");      // DBに保存しているパス
+  const [avatarPreview, setAvatarPreview] = useState<string>(""); // 署名URL
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [deletingAvatar, setDeletingAvatar] = useState(false);
+
   const handleSaveToast = () => {
     setShowToast(true);
     setTimeout(() => setShowToast(false), 1800);
+  };
+
+  /** 署名URLを作成して preview に設定（avatars は private 運用を想定） */
+  const refreshAvatarPreview = async (path: string | null) => {
+    if (!path) {
+      setAvatarPreview("");
+      return;
+    }
+    // 署名URL（10分）
+    const { data, error } = await supabase.storage.from("avatars").createSignedUrl(path, 60 * 10);
+    if (!error) setAvatarPreview(data?.signedUrl ?? "");
   };
 
   /** 初期ロード（auth + hospital_accounts） */
@@ -45,40 +65,29 @@ export default function HospitalAccountPage() {
       setUid(user.id);
 
       // hospital_accounts の自分のレコード（無ければ作る）
-      const { data: haRow, error: haErr } = await supabase
+      const { data: haRow } = await supabase
         .from("hospital_accounts")
-        .select("id,hospital_id,hospital_name,contact_name,contact_tel,contact_email,is_published")
+        .select("id,hospital_id,hospital_name,contact_name,contact_tel,contact_email,is_published,avatar_url")
         .eq("id", user.id)
         .maybeSingle();
-      if (haErr) console.error("[account] load hospital_accounts error:", haErr.message);
 
-      // メタデータ（役職・部署などは metadata を補助的に）
       const meta = user.user_metadata ?? {};
 
-      // レコードが無ければ空で作成（RLS: self_insert/upsert が必要）
       if (!haRow) {
-        const { error: upErr } = await supabase
-          .from("hospital_accounts")
-          .upsert({ id: user.id, hospital_id: user.id, is_published: true });
-        if (upErr) console.warn("[account] upsert empty row:", upErr.message);
+        // 初回作成（保険）
+        await supabase.from("hospital_accounts").upsert({ id: user.id, hospital_id: user.id, is_published: true });
       } else {
-        // hospital_id が未設定なら id を既定で紐付け（初回の保険）
         if (!haRow.hospital_id) {
-          const { error: linkErr } = await supabase
-            .from("hospital_accounts")
-            .update({ hospital_id: user.id })
-            .eq("id", user.id);
-          if (linkErr) console.warn("[account] link hospital_id fallback:", linkErr.message);
+          await supabase.from("hospital_accounts").update({ hospital_id: user.id }).eq("id", user.id);
         }
       }
 
-      // もう一度最新を読む
-      const { data: ha, error: reErr } = await supabase
+      // 最新を再取得
+      const { data: ha } = await supabase
         .from("hospital_accounts")
-        .select("id,hospital_id,hospital_name,contact_name,contact_tel,contact_email,is_published")
+        .select("id,hospital_id,hospital_name,contact_name,contact_tel,contact_email,is_published,avatar_url")
         .eq("id", user.id)
         .maybeSingle();
-      if (reErr) console.error("[account] reload error:", reErr.message);
 
       setRep({
         name : (ha?.contact_name ?? (meta.name as string) ?? "") as string,
@@ -93,9 +102,64 @@ export default function HospitalAccountPage() {
       });
 
       setIsPublished(ha?.is_published ?? true);
+
+      // 画像
+      setAvatarPath(ha?.avatar_url ?? "");
+      await refreshAvatarPreview(ha?.avatar_url ?? "");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /** 画像アップロード */
+  const onPickAvatar: React.ChangeEventHandler<HTMLInputElement> = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !uid) return;
+
+    try {
+      setUploadingAvatar(true);
+
+      const path = `avatars/${uid}/avatar.png`;
+
+      // 既存があれば削除（拡張子が違う場合も一旦固定の path に寄せる）
+      await supabase.storage.from("avatars").remove([path]).catch(() => {});
+
+      // アップロード
+      const { error: upErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, cacheControl: "3600", contentType: file.type });
+      if (upErr) throw upErr;
+
+      // DBに保存
+      await supabase.from("hospital_accounts").update({ avatar_url: path }).eq("id", uid);
+
+      setAvatarPath(path);
+      await refreshAvatarPreview(path);
+    } catch (err: any) {
+      console.error("[account] avatar upload error:", err?.message);
+      alert(`画像のアップロードに失敗しました：${err?.message ?? "unknown"}`);
+    } finally {
+      setUploadingAvatar(false);
+      // input の値をクリアし、同じファイルの再選択でも change が発火するように
+      e.currentTarget.value = "";
+    }
+  };
+
+  /** 画像削除 */
+  const onDeleteAvatar = async () => {
+    if (!uid || !avatarPath) return;
+    try {
+      setDeletingAvatar(true);
+      await supabase.storage.from("avatars").remove([avatarPath]).catch(() => {});
+      await supabase.from("hospital_accounts").update({ avatar_url: null }).eq("id", uid);
+      setAvatarPath("");
+      setAvatarPreview("");
+    } catch (err: any) {
+      console.error("[account] avatar delete error:", err?.message);
+      alert(`画像の削除に失敗しました：${err?.message ?? "unknown"}`);
+    } finally {
+      setDeletingAvatar(false);
+    }
+  };
 
   /** 代表者情報 保存 */
   const saveRep = async () => {
@@ -188,7 +252,7 @@ export default function HospitalAccountPage() {
     }
   };
 
-  /** パスワード保存（← これが無くて怒られていた） */
+  /** パスワード保存 */
   const changePassword = async () => {
     const next = (document.getElementById("newpw") as HTMLInputElement)?.value || "";
     if (!next) return;
@@ -235,6 +299,39 @@ export default function HospitalAccountPage() {
           </button>
         </div>
       </div>
+
+      {/* ===== プロフィール画像 ===== */}
+      <section className="card p-6 space-y-4">
+        <h2 className="text-lg font-semibold text-primary-700">プロフィール画像</h2>
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-full border bg-gray-50 overflow-hidden flex items-center justify-center">
+            {avatarPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarPreview} alt="avatar" className="w-full h-full object-cover" />
+            ) : (
+              <ImageIcon className="w-8 h-8 text-gray-400" />
+            )}
+          </div>
+
+          <label className="inline-flex items-center gap-2 px-3 py-2 border rounded cursor-pointer">
+            <input type="file" accept="image/*" className="hidden" onChange={onPickAvatar} />
+            {uploadingAvatar ? "アップロード中…" : "画像をアップロード"}
+          </label>
+
+          {avatarPath && (
+            <button
+              onClick={onDeleteAvatar}
+              disabled={deletingAvatar}
+              className="text-red-600 text-sm flex items-center gap-1"
+            >
+              <Trash2 className="w-4 h-4" />
+              {deletingAvatar ? "削除中…" : "削除"}
+            </button>
+          )}
+
+          <p className="text-xs text-gray-500">推奨：400×400px、最大2MB / avatars バケットに保存</p>
+        </div>
+      </section>
 
       {/* ===== 代表者情報 ===== */}
       <section className="card p-6 space-y-4 relative">

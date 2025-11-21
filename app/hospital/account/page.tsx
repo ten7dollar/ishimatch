@@ -50,10 +50,7 @@ export default function HospitalAccountPage() {
         .select("id,hospital_id,hospital_name,contact_name,contact_tel,contact_email,is_published")
         .eq("id", user.id)
         .maybeSingle();
-
-      if (haErr) {
-        console.error("[account] load hospital_accounts error:", haErr.message);
-      }
+      if (haErr) console.error("[account] load hospital_accounts error:", haErr.message);
 
       // メタデータ（役職・部署などは metadata を補助的に）
       const meta = user.user_metadata ?? {};
@@ -117,7 +114,7 @@ export default function HospitalAccountPage() {
       if (e1) throw e1;
 
       // 2) auth.user（metadata + email 変更反映）
-      const payload: any = {
+      const payload: { data: Record<string, unknown>; email?: string } = {
         data: {
           name : rep.name || null,
           title: rep.title || null,
@@ -126,7 +123,7 @@ export default function HospitalAccountPage() {
       };
       const { data: { user } } = await supabase.auth.getUser();
       if (user && rep.email && rep.email !== user.email) {
-        payload.email = rep.email; // メール変更を許可（プロジェクト設定で確認メールの挙動に依存）
+        payload.email = rep.email; // Supabase設定により確認メールが飛ぶことがあります
       }
       const { error: e2 } = await supabase.auth.updateUser(payload);
       if (e2) throw e2;
@@ -191,7 +188,7 @@ export default function HospitalAccountPage() {
     }
   };
 
-  /** パスワード保存 */
+  /** パスワード保存（← これが無くて怒られていた） */
   const changePassword = async () => {
     const next = (document.getElementById("newpw") as HTMLInputElement)?.value || "";
     if (!next) return;
@@ -327,7 +324,7 @@ export default function HospitalAccountPage() {
             setValue={(v) => setContact((s) => ({ ...s, department: v }))}
             disabled={editingSection !== "contact"}
           />
-        <Field
+          <Field
             label="採用窓口メール"
             placeholder="例：recruit@hospital.jp"
             value={contact.recruitEmail}
@@ -335,27 +332,6 @@ export default function HospitalAccountPage() {
             disabled={editingSection !== "contact"}
           />
         </div>
-      </section>
-
-      {/* ===== 通知設定（UIのみ） ===== */}
-      <section className="card p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-primary-700">通知設定</h2>
-        <p className="text-text-muted text-sm">メール通知を受け取るイベントを選択してください</p>
-
-        {[
-          { label: "応募通知", desc: "学生から新しい応募があった時" },
-          { label: "閲覧通知", desc: "学生があなたの病院情報を閲覧した時" },
-          { label: "お気に入り通知", desc: "学生があなたの病院をお気に入りに追加した時" },
-          { label: "面談返信通知", desc: "面談打診に対して学生から返信があった時" },
-        ].map((item, i) => (
-          <div key={i} className="flex items-center justify-between border rounded-md px-4 py-3 text-sm">
-            <div>
-              <p className="font-medium text-text">{item.label}</p>
-              <p className="text-text-muted text-xs">{item.desc}</p>
-            </div>
-            <input type="checkbox" className="accent-primary-500 h-5 w-5" defaultChecked />
-          </div>
-        ))}
       </section>
 
       {/* ===== パスワード変更 ===== */}

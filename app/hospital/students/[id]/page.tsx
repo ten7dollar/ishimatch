@@ -12,6 +12,9 @@ import {
   type FavStudent,
 } from "../../_providers/favorite-students";
 
+// 追加：病院で学生の提出書類を閲覧するコンポーネント
+import StudentDocuments from "./_components/StudentDocuments";
+
 /* ----------------------------------------------------
    Supabase: students の型（あなたのスキーマに合わせる）
 ---------------------------------------------------- */
@@ -35,9 +38,9 @@ type StudentRow = {
   region: string | null;
   prefecture: string | null;
 
-  duty_preference: string | null; // "可能" | "相談" | "不可" など
+  duty_preference: string | null; // "可能" | "相談" | "不可"
   desired_salary_min: number | null;
-  major: string | null;           // CSV などを想定
+  major: string | null;
 
   avatar_url: string | null;
   transcript_url: string | null;
@@ -81,7 +84,7 @@ export default function StudentProfilePage() {
     })();
   }, [supabase, idParam]);
 
-  // 正規化：表示名・希望エリア・専攻・希望年収 など
+  // 表示用に整形
   const display = useMemo(() => {
     if (!row) return null;
 
@@ -92,19 +95,14 @@ export default function StudentProfilePage() {
 
     const gradYearStr = row.grad_year != null ? String(row.grad_year) : undefined;
 
-    // 希望年収は「◯◯万円以上」表示（なければ "—"）
     const desiredSalaryText =
       row.desired_salary_min != null ? `${row.desired_salary_min}万円以上` : "—";
 
-    // 志望診療科は CSV を配列に
     const majors =
       row.major?.split(/[、,]/).map((s) => s.trim()).filter(Boolean) ?? [];
 
-    // 希望勤務地は prefecture を優先、なければ region
     const areaText = row.prefecture || row.region || "—";
 
-    // 自己PR（現時点で students に明確なPRカラムが無い想定のため placeholder）
-    // もし将来 preferences などに格納するなら、ここで parse して拾ってください。
     const selfPr = "自己PRはまだ登録されていません。";
 
     return {
@@ -129,7 +127,7 @@ export default function StudentProfilePage() {
       id: row.id,
       name: display.displayName,
       university: display.university,
-      gradYear: display.gradYearStr ?? "", // string | undefined
+      gradYear: display.gradYearStr ?? "",
     };
     toggleFavorite(payload);
   };
@@ -172,9 +170,7 @@ export default function StudentProfilePage() {
       </button>
 
       <h1 className="text-xl font-semibold">学生プロフィール</h1>
-      <p className="text-text-muted text-sm">
-        {display.displayName} さんの詳細情報
-      </p>
+      <p className="text-text-muted text-sm">{display.displayName} さんの詳細情報</p>
 
       {/* ── ヘッダーカード（右：アクション2ボタン） ── */}
       <section className="card p-6 space-y-4">
@@ -190,15 +186,12 @@ export default function StudentProfilePage() {
               <div className="flex gap-4 text-sm text-text-muted">
                 <span>卒業予定：{display.gradYearStr ?? "—"}年</span>
                 <span>希望勤務地：{display.areaText}</span>
-                <span>
-                  志望科：
-                  {display.majors.length > 0 ? display.majors.join("、") : "—"}
-                </span>
+                <span>志望科：{display.majors.length > 0 ? display.majors.join("、") : "—"}</span>
               </div>
             </div>
           </div>
 
-        {/* 右：アクション 2ボタン（スカウト＝新画面へ遷移） */}
+          {/* 右：アクション 2ボタン */}
           <div className="flex gap-2 shrink-0">
             <Link
               href={`/hospital/scouts/new?studentId=${encodeURIComponent(display.id)}`}
@@ -229,35 +222,23 @@ export default function StudentProfilePage() {
       <section className="grid md:grid-cols-2 gap-4">
         <div className="card p-4 space-y-2 text-sm">
           <h4 className="font-semibold text-primary-700">希望条件</h4>
-          <p>
-            <span className="font-medium">希望勤務地：</span>
-            {display.areaText}
-          </p>
-          <p>
-            <span className="font-medium">志望診療科：</span>
-            {display.majors.length > 0 ? display.majors.join("、") : "—"}
-          </p>
-          <p>
-            <span className="font-medium">希望年収：</span>
-            {display.desiredSalaryText}
-          </p>
+          <p><span className="font-medium">希望勤務地：</span>{display.areaText}</p>
+          <p><span className="font-medium">志望診療科：</span>{display.majors.length > 0 ? display.majors.join("、") : "—"}</p>
+          <p><span className="font-medium">希望年収：</span>{display.desiredSalaryText}</p>
         </div>
 
         <div className="card p-4 space-y-2 text-sm">
           <h4 className="font-semibold text-primary-700">勤務希望</h4>
-          <p>
-            <span className="font-medium">当直可否：</span>
-            {display.duty}
-          </p>
-          <p>
-            <span className="font-medium">メール：</span>
-            {display.email || "—"}
-          </p>
-          <p>
-            <span className="font-medium">電話：</span>
-            {display.phone || "—"}
-          </p>
+          <p><span className="font-medium">当直可否：</span>{display.duty}</p>
+          <p><span className="font-medium">メール：</span>{display.email || "—"}</p>
+          <p><span className="font-medium">電話：</span>{display.phone || "—"}</p>
         </div>
+      </section>
+
+      {/* 提出書類（署名付きURLで安全に閲覧） */}
+      <section className="card p-6 space-y-3">
+        <h3 className="text-primary-700 font-semibold">提出書類</h3>
+        <StudentDocuments studentId={display.id} />
       </section>
 
       {/* 🗒️ 仕様変更：スコア/活動履歴は非表示に */}

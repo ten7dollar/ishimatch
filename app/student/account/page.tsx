@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 export default function AccountPage() {
-  const supabase = createSupabaseBrowser();
+  const supabase = useMemo(() => createSupabaseBrowser(), []);
 
   // 基本情報（原文フィールド名を維持）
   const [profile, setProfile] = useState({
@@ -19,6 +19,11 @@ export default function AccountPage() {
   const [profileDraft, setProfileDraft] = useState(profile);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState<null | "ok" | "ng">(null);
+
+  // アバター（表示用URL＋保存パス）
+  const [avatarUrl, setAvatarUrl] = useState<string>(""); // storage public url
+  const [avatarPath, setAvatarPath] = useState<string>(""); // avatars/{uid}/avatar.png
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   // パスワード変更（原文UXのまま）
   const [pwOpen, setPwOpen] = useState(false);
@@ -53,7 +58,7 @@ export default function AccountPage() {
       // students テーブル
       const { data: s } = await supabase
         .from("students")
-        .select("name, university, grad_year")
+        .select("name, university, grad_year, avatar_url")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -72,11 +77,21 @@ export default function AccountPage() {
       const init = { lastName, firstName, email, university, phone, gradYear };
       setProfile(init);
       setProfileDraft(init);
+
+      // avatar 表示用
+      if (s?.avatar_url) {
+        setAvatarPath(s.avatar_url);
+        const { data } = supabase.storage.from("avatars").getPublicUrl(s.avatar_url);
+        setAvatarUrl(data.publicUrl);
+      } else {
+        setAvatarPath("");
+        setAvatarUrl("");
+      }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // --- Supabase 保存（UIは原文のまま） ---
+  // --- プロフィール保存（原文どおり） ---
   async function updateProfile() {
     try {
       setSavingProfile(true);
@@ -99,9 +114,7 @@ export default function AccountPage() {
             id: user.id,
             name: fullName,
             university: profileDraft.university || null,
-            grad_year: profileDraft.gradYear
-              ? Number(profileDraft.gradYear)
-              : null,
+            grad_year: profileDraft.gradYear ? Number(profileDraft.gradYear) : null,
           });
         if (upsertErr) throw upsertErr;
       }
@@ -115,11 +128,6 @@ export default function AccountPage() {
           },
         };
 
-        // ※メール変更は任意：Supabaseの設定次第で確認メールが必要になる
-        // if (profileDraft.email && profileDraft.email !== profile.email) {
-        //   metaPayload.email = profileDraft.email;
-        // }
-
         const { error: metaErr } = await supabase.auth.updateUser(metaPayload);
         if (metaErr) throw metaErr;
       }
@@ -132,6 +140,86 @@ export default function AccountPage() {
       setProfileMsg("ng");
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  // --- 画像アップロード ---
+  async function handleAvatarFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingAvatar(true);
+
+      // 軽いバリデーション
+      if (!file.type.startsWith("image/")) {
+        alert("画像ファイルを選択してください");
+        return;
+      }
+      if (file.size > 2 * 1024 * 1024) {
+        alert("最大2MBまでアップロードできます");
+        return;
+      }
+
+      // user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert("ログインが必要です");
+        return;
+      }
+
+      const path = `${user.id}/avatar.png`;
+
+      // Storage へ upsert
+      const { error: uploadErr } = await supabase.storage
+        .from("avatars")
+        .upload(path, file, { upsert: true, cacheControl: "3600" });
+      if (uploadErr) throw uploadErr;
+
+      // DB 更新
+      const { error: dbErr } = await supabase
+        .from("students")
+        .update({ avatar_url: path })
+        .eq("id", user.id);
+      if (dbErr) throw dbErr;
+
+      // 表示URL へ反映（キャッシュバスト）
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      setAvatarPath(path);
+      setAvatarUrl(`${data.publicUrl}?v=${Date.now()}`);
+    } catch (err: any) {
+      console.error("[Account] avatar upload error", err);
+      alert(err?.message ?? "アップロードに失敗しました");
+    } finally {
+      setUploadingAvatar(false);
+      // input をリセット（同じファイル選択でも change が走るように）
+      e.currentTarget.value = "";
+    }
+  }
+
+  // --- 画像削除（任意） ---
+  async function handleAvatarDelete() {
+    if (!avatarPath) return;
+    if (!confirm("プロフィール画像を削除しますか？")) return;
+
+    try {
+      setUploadingAvatar(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // Storage 削除
+      await supabase.storage.from("avatars").remove([avatarPath]);
+
+      // DB クリア
+      await supabase.from("students").update({ avatar_url: null }).eq("id", user.id);
+
+      setAvatarPath("");
+      setAvatarUrl("");
+    } catch (err: any) {
+      console.error("[Account] avatar delete error", err);
+      alert(err?.message ?? "削除に失敗しました");
+    } finally {
+      setUploadingAvatar(false);
     }
   }
 
@@ -164,24 +252,44 @@ export default function AccountPage() {
       <h1 className="text-2xl font-bold">アカウント設定</h1>
       <p className="text-gray-600">プロフィール情報とセキュリティ設定を管理します</p>
 
-      {/* プロフィール画像（UIのみ） */}
+      {/* プロフィール画像 */}
       <section className="border rounded-xl bg-white p-6 space-y-4">
         <h2 className="font-semibold text-primary-700">プロフィール画像</h2>
+
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-gray-100 border flex items-center justify-center text-2xl text-gray-500">
-            {profile.lastName ? profile.lastName[0] : "医"}
+          <div className="w-16 h-16 rounded-full bg-gray-100 border flex items-center justify-center overflow-hidden">
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avatarUrl} alt="" className="w-16 h-16 object-cover" />
+            ) : (
+              <span className="text-2xl text-gray-500">
+                {profile.lastName ? profile.lastName[0] : "医"}
+              </span>
+            )}
           </div>
+
           <label className="inline-flex items-center gap-2 px-3 py-2 border rounded cursor-pointer">
             <input
               type="file"
+              accept="image/*"
               className="hidden"
-              onChange={() => alert("アップロード処理は後日実装")}
+              onChange={handleAvatarFileChange}
+              disabled={uploadingAvatar}
             />
-            画像をアップロード
+            {uploadingAvatar ? "アップロード中…" : "画像をアップロード"}
           </label>
-          <p className="text-xs text-gray-500">
-            推奨サイズ：400x400px、最大2MB
-          </p>
+
+          {avatarUrl && (
+            <button
+              onClick={handleAvatarDelete}
+              disabled={uploadingAvatar}
+              className="text-sm text-red-600 hover:underline"
+            >
+              削除
+            </button>
+          )}
+
+          <p className="text-xs text-gray-500">推奨サイズ：400x400px、最大2MB</p>
         </div>
       </section>
 

@@ -1,113 +1,84 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-type Props = {
-  /** 学生の Supabase UID（page.tsx から渡される） */
-  studentId: string;
+type DocRow = {
+  id: string;
+  title: string;
+  path: string;
+  file_name: string;
+  mime_type: string | null;
+  created_at: string;
 };
 
-type SignUploadResponse = {
-  ok: boolean;
-  url?: string;      // 署名付き PUT URL（Storage に直接 PUT する）
-  path?: string;     // 実際に保存される Storage パス (documents/{uid}/...)
-  error?: string;
-};
-
-/**
- * 成績証明書・資格証明書のアップロード UI
- * - 署名付きアップロードURLをAPIから取得 → StorageにPUT → student_documentsへINSERT
- */
-export default function UploadDocuments({ studentId }: Props) {
-  const supabase = createSupabaseBrowser();
+export default function StudentDocuments({ studentId }: { studentId: string }) {
+  const sb = createSupabaseBrowser();
+  const [list, setList] = useState<DocRow[]>([]);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
-  async function handleSelect(
-    e: React.ChangeEvent<HTMLInputElement>,
-    kind: "transcript" | "certificate"
-  ) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await sb
+        .from("student_documents")
+        .select("id,title,path,file_name,mime_type,created_at")
+        .eq("student_id", studentId)
+        .order("created_at", { ascending: false });
+      if (!error) setList((data ?? []) as DocRow[]);
+    })();
+  }, [sb, studentId]);
 
-    setBusy(true);
-    setMessage(null);
-
+  const onView = async (row: DocRow) => {
     try {
-      // 1) 署名付きアップロードURLをAPIから取得
-      const signRes = await fetch("/api/documents/sign-upload", {
+      setBusy(true);
+      // 閲覧用の署名URLを取得（Cookie を必ず同送）
+      const resp = await fetch("/api/documents/view-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          kind,                // "transcript" | "certificate"
-          filename: file.name, // オリジナル名（API側で安全なパスに変換）
-          contentType: file.type ?? "application/octet-stream",
-        }),
-        credentials: "include",
+        credentials: "include", // ← 病院ログインをサーバで認識させる
+        body: JSON.stringify({ studentId, path: row.path }),
       });
-
-      const signJson = (await signRes.json()) as SignUploadResponse;
-      if (!signRes.ok || !signJson.ok || !signJson.url || !signJson.path) {
-        throw new Error(signJson.error || "failed to get signed upload url");
-      }
-
-      // 2) 取得した署名付きURLへ PUT（Content-Type はそのまま付与）
-      const putRes = await fetch(signJson.url, {
-        method: "PUT",
-        headers: { "Content-Type": file.type ?? "application/octet-stream" },
-        body: file,
-      });
-      if (!putRes.ok) {
-        throw new Error(`upload failed (${putRes.status})`);
-      }
-
-      // 3) DB に記録（student_documents）
-      const { error: insertErr } = await supabase
-        .from("student_documents")
-        .insert({
-          student_id: studentId,
-          kind,
-          path: signJson.path,     // Storage 上の保存パス
-          title: file.name,        // 表示用タイトル（元ファイル名）
-          file_name: file.name,    // 任意：元ファイル名を保持
-          mime_type: file.type || null,
-        });
-      if (insertErr) throw insertErr;
-
-      setMessage("アップロードしました。");
-      // 成功後は input の値をクリア（同じファイルを続けて選んでも onChange が発火するように）
-      e.currentTarget.value = "";
-    } catch (err: any) {
-      setMessage(`アップロードに失敗しました: ${err?.message ?? "unknown error"}`);
+      const json = await resp.json();
+      if (!resp.ok || !json?.ok) throw new Error(json?.error || "failed");
+      window.open(json.url as string, "_blank", "noopener,noreferrer");
+    } catch (e: any) {
+      alert(`表示に失敗しました：${e.message ?? e}`);
     } finally {
       setBusy(false);
     }
-  }
+  };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <label className="block text-sm text-gray-600 mb-1">成績証明書（PDF / 画像）</label>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          disabled={busy}
-          onChange={(e) => handleSelect(e, "transcript")}
-        />
-      </div>
+    <section className="card p-4 space-y-3">
+      <h3 className="font-semibold text-primary-700">提出書類</h3>
 
-      <div>
-        <label className="block text-sm text-gray-600 mb-1">資格証明書（PDF / 画像）</label>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          disabled={busy}
-          onChange={(e) => handleSelect(e, "certificate")}
-        />
-      </div>
-
-      {message && <p className="text-sm text-gray-600">{message}</p>}
-    </div>
+      <ul className="divide-y border rounded">
+        {list.map((row) => (
+          <li
+            key={row.id}
+            className="flex items-center justify-between px-3 py-2"
+          >
+            <div className="min-w-0">
+              <p className="font-medium truncate">{row.title}</p>
+              <p className="text-xs text-gray-500">
+                {row.file_name} / {row.mime_type ?? "?"}
+              </p>
+            </div>
+            <button
+              className="text-sm text-primary-600 hover:underline"
+              onClick={() => onView(row)}
+              disabled={busy}
+            >
+              表示
+            </button>
+          </li>
+        ))}
+        {list.length === 0 && (
+          <li className="px-3 py-6 text-sm text-gray-500 text-center">
+            まだ提出がありません
+          </li>
+        )}
+      </ul>
+    </section>
   );
 }

@@ -37,9 +37,9 @@ type StudentRow = {
 
   duty_preference: string | null; // "可能" | "相談" | "不可"
   desired_salary_min: number | null;
-  major: string | null;           // CSV 想定
+  major: string | null;           // CSV想定
 
-  avatar_url: string | null;      // 例: "20eb2484-.../avatar.jpg"
+  avatar_url: string | null;      // 例: "20eb.../avatar.jpg"
 
   updated_at: string | null;
 };
@@ -54,17 +54,10 @@ export default function StudentProfilePage() {
   const [row, setRow] = useState<StudentRow | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const { isFavorite, toggleFavorite } = useFavoriteStudents();
+  // アバター表示用（署名付きURLをここに入れる）
+  const [signedAvatarUrl, setSignedAvatarUrl] = useState<string | null>(null);
 
-  /** avatars は public 運用なので URL を文字列で直組みする（最も確実） */
-  function buildAvatarUrl(avatarPath: string | null): string | undefined {
-    if (!avatarPath) return undefined;
-    // 先頭スラッシュを除去したバケット内パスに正規化
-    const clean = avatarPath.replace(/^\//, "");
-    const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars`;
-    // encodeURI で日本語/空白などを安全に
-    return `${base}/${encodeURI(clean)}`;
-  }
+  const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
   /** 学生詳細の読み込み */
   useEffect(() => {
@@ -87,6 +80,38 @@ export default function StudentProfilePage() {
       }
     })();
   }, [supabase, idParam]);
+
+  /** avatars の署名付きURLを発行（Cookie不要） */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function issueSignedAvatarURL(path: string) {
+      try {
+        // 先頭スラッシュなどは排除しておく
+        const cleanPath = path.replace(/^\/+/, "");
+        // 10分だけ有効な署名URL
+        const { data, error } = await supabase.storage
+          .from("avatars")
+          .createSignedUrl(cleanPath, 60 * 10);
+        if (error) throw error;
+        if (!cancelled) setSignedAvatarUrl(data?.signedUrl ?? null);
+      } catch (e) {
+        console.warn("[avatar] createSignedUrl failed:", e);
+        if (!cancelled) setSignedAvatarUrl(null);
+      }
+    }
+
+    // row が読み込まれたら発行
+    if (row?.avatar_url) {
+      issueSignedAvatarURL(row.avatar_url);
+    } else {
+      setSignedAvatarUrl(null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [row?.avatar_url, supabase]);
 
   /** 表示用に正規化 */
   const display = useMemo(() => {
@@ -121,7 +146,6 @@ export default function StudentProfilePage() {
       duty: row.duty_preference ?? "—",
       email: row.email ?? "",
       phone: row.phone ?? "",
-      avatarUrl: buildAvatarUrl(row.avatar_url), // ← ここで確実にURL化
       selfPr: "自己PRはまだ登録されていません。",
     };
   }, [row]);
@@ -184,12 +208,13 @@ export default function StudentProfilePage() {
           {/* 左：アバター＋基本情報 */}
           <div className="flex items-center gap-6">
             <div className="w-20 h-20 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold overflow-hidden">
-              {display.avatarUrl ? (
+              {signedAvatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
-                  src={display.avatarUrl}
+                  src={signedAvatarUrl}
                   alt="avatar"
                   className="w-full h-full object-cover"
+                  onError={() => setSignedAvatarUrl(null)}
                 />
               ) : (
                 display.displayName.slice(0, 2)

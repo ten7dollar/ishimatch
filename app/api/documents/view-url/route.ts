@@ -3,80 +3,66 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
+import { createSupabaseAdmin, readSupabaseUserFromCookie } from "@/app/lib/supabase/admin";
 
 /**
  * POST /api/documents/view-url
- * Body: { id: string }  // student_documents.id
- *  - サーバ側で student_documents を参照し、所有者チェック（本人 or 病院）をしてから
- *    Storage "documents" の署名付きURL(5分)を返す
+ * Body: { studentId: string; path: string }
+ * 役割:
+ *  - documents バケットの private ファイルの署名付きURL（5分）を返す
+ * 認可:
+ *  - 病院ログイン（role === "hospital"）なら誰のファイルでも可
+ *  - 学生ログインは本人（userId === studentId）のみ可
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { id?: string };
-    const id = body?.id?.trim();
-    if (!id) {
+    const body = (await req.json()) as { studentId?: string; path?: string };
+    const studentId = body?.studentId?.trim();
+    const path = body?.path?.trim();
+
+    if (!studentId || !path) {
       return NextResponse.json(
-        { ok: false, error: "id is required" },
+        { ok: false, error: "studentId and path are required" },
         { status: 400 }
       );
     }
 
-    // Cookie（role / email は /api/session、Auth の sb-*** は Supabase が設定）
-    // Next.js 15 以降は cookies() が Promise になるため await が必要
-    const jar = await cookies();
-    const role = jar.get("role")?.value ?? "";
-    const sbAccess = jar.get("sb-access-token")?.value; // Supabase Auth cookie（名前は環境で若干変わります）
+    // Cookie から role / userId を読む
+    const { role, userId } = readSupabaseUserFromCookie(req.headers.get("cookie") || "");
 
-    if (!sbAccess) {
-      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    // ✅ 認可: 病院は role だけでOK（userId不要）/ 学生は本人のみ
+    const isHospital = role === "hospital";
+    const isStudentSelf = !!userId && userId === studentId;
+
+    if (!(isHospital || isStudentSelf)) {
+      // role がない or 学生だが本人ではない
+      // 病院ログインで role は見えているが userId は無い（=想定通り）場合はここを通らない
+      const status = role ? 403 : 401;
+      return NextResponse.json({ ok: false, error: status === 401 ? "unauthorized" : "forbidden" }, { status });
+    }
+
+    // パスの安全性
+    if (!path.startsWith(`${studentId}/`)) {
+      return NextResponse.json(
+        { ok: false, error: "invalid path (must start with {studentId}/)" },
+        { status: 400 }
+      );
+    }
+    if (path.includes("..") || !/^[-_/.\w\u3040-\u30ff\u4e00-\u9faf]+$/.test(path)) {
+      return NextResponse.json({ ok: false, error: "invalid path" }, { status: 400 });
     }
 
     const admin = createSupabaseAdmin();
-
-    // 1) 該当ドキュメントを DB から取得
-    const { data: doc, error: docErr } = await admin
-      .from("student_documents")
-      .select("id, student_id, path, file_name")
-      .eq("id", id)
-      .maybeSingle();
-
-    if (docErr) {
-      console.error("[view-url] select error:", docErr.message);
-      return NextResponse.json({ ok: false, error: "select failed" }, { status: 500 });
-    }
-    if (!doc) {
-      return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
-    }
-
-    // 2) 本人 or 病院であることをサーバ側で判断
-    const isHospital = role === "hospital";
-    // cookie から userId を直接読まず、Auth の JWT を使って admin 側で検証してもOK
-    // MVP では role === hospital を優先
-    if (!isHospital) {
-      // 本人確認（Auth のユーザーIDを得る）
-      const { data: me } = await admin.auth.getUser(sbAccess);
-      const myId = me?.user?.id;
-      if (!myId || myId !== doc.student_id) {
-        return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
-      }
-    }
-
-    // 3) 署名付きURLを発行（Storage バケットは "documents"）
-    //    ※ path は DB に保存してある安全な値を使う
-    const { data: signed, error: sErr } = await admin.storage
+    const { data, error } = await admin.storage
       .from("documents")
-      .createSignedUrl(doc.path, 60 * 5); // 5分
+      .createSignedUrl(path, 60 * 5); // 5分有効
 
-    if (sErr || !signed?.signedUrl) {
-      console.error("[view-url] signed url error:", sErr?.message);
-      return NextResponse.json({ ok: false, error: "object not found" }, { status: 500 });
+    if (error || !data?.signedUrl) {
+      return NextResponse.json({ ok: false, error: error?.message || "failed" }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, url: signed.signedUrl }, { status: 200 });
+    return NextResponse.json({ ok: true, url: data.signedUrl }, { status: 200 });
   } catch (e: any) {
-    console.error("[view-url] unexpected:", e?.message ?? e);
     return NextResponse.json(
       { ok: false, error: e?.message ?? "unexpected error" },
       { status: 500 }

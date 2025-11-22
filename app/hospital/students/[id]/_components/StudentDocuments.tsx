@@ -1,3 +1,4 @@
+// app/hospital/students/[id]/_components/StudentDocuments.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -25,33 +26,25 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
     (async () => {
       const { data, error } = await sb
         .from("student_documents")
-        .select(
-          "id,doc_type,title,file_name,mime_type,size_bytes,path,created_at"
-        )
+        .select("id,doc_type,title,file_name,mime_type,size_bytes,path,created_at")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false });
-
       if (!cancelled) {
         if (error) setErr(error.message);
         setList((data ?? []) as DocRow[]);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [sb, studentId]);
 
-  /**
-   * 表示ボタン：ダウンロードAPIに docId だけ渡して 302 リダイレクトで開く
-   * fetch は不要。Cookie も自動で同送されるので認証周りのずれが起きない。
-   */
   function onView(row: DocRow) {
+    setErr(null);
+    setBusyId(row.id);
     try {
-      setErr(null);
-      setBusyId(row.id);
+      // サーバが 302 で署名URLへ飛ばす
       const url = `/api/documents/download?id=${encodeURIComponent(row.id)}`;
-      // 直接新しいタブで開く（署名URLに 302 で飛ぶ）
       window.open(url, "_blank", "noopener");
     } catch (e: any) {
       setErr(e?.message ?? "表示に失敗しました");
@@ -67,22 +60,16 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
 
       <ul className="divide-y border rounded">
         {list.map((row) => (
-          <li
-            key={row.id}
-            className="flex items-center justify-between px-3 py-2"
-          >
+          <li key={row.id} className="flex items-center justify-between px-3 py-2">
             <div className="min-w-0">
               <p className="font-medium truncate">
-                {row.title ??
-                  (row.doc_type === "transcript" ? "成績証明書" : "資格証明書")}
+                {row.title ?? (row.doc_type === "transcript" ? "成績証明書" : "資格証明書")}
               </p>
               <p className="text-xs text-gray-500">
                 {row.file_name} / {row.mime_type ?? "?"}
                 {row.size_bytes ? ` / ${Math.round(row.size_bytes / 1024)}KB` : ""}
               </p>
-              <p className="text-xs text-gray-400">
-                {new Date(row.created_at).toLocaleString()}
-              </p>
+              <p className="text-xs text-gray-400">{new Date(row.created_at).toLocaleString()}</p>
             </div>
 
             <button
@@ -96,9 +83,7 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
         ))}
 
         {list.length === 0 && (
-          <li className="px-3 py-6 text-sm text-gray-500 text-center">
-            まだ提出がありません
-          </li>
+          <li className="px-3 py-6 text-sm text-gray-500 text-center">まだ提出がありません</li>
         )}
       </ul>
     </section>

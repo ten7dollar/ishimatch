@@ -1,69 +1,57 @@
 // app/api/documents/view-url/route.ts
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 
-import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdmin, readSupabaseUserFromCookie } from "@/app/lib/supabase/admin";
-import { createClient } from "@supabase/supabase-js";
+// 環境変数（Next.js で .env に設定している値）
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
-// ★ request の Cookie から supabase のユーザーを確実に取得するヘルパ
-async function getAuthUser(req: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-  const cookie = req.headers.get("cookie") || "";
-  const supabase = createClient(url, anon, {
-    auth: {
-      persistSession: false,
-      detectSessionInUrl: false,
-    },
-    global: { headers: { Cookie: cookie } as any },
-  });
-  const { data: { user } } = await supabase.auth.getUser();
-  return user ?? null;
-}
+/**
+ * 病院ログイン（role= "hospital"）であれば、student_documents の
+ * {studentId}/... 直下のファイルに対して 1 分間有効な署名 URL を発行します。
+ * ※ 学生本人の検証は行いません（要件：「病院は閲覧可」） 
+ */
+export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { studentId?: string; path?: string };
-    const studentId = body?.studentId?.trim();
-    const path = body?.path?.trim();
+    const { studentId, path } = (await req.json()) as {
+      studentId?: string;
+      path?: string;
+    };
 
-    if (!studentId || !path) {
-      return NextResponse.json({ ok: false, error: "studentId and path are required" }, { status: 400 });
+    if (!studentId || !path || typeof studentId !== 'string' || typeof path !== 'string') {
+      return NextResponse.json({ ok: false, error: 'bad_request' }, { status: 400 });
     }
 
-    // 1) Supabase Auth（必須）
-    const authUser = await getAuthUser(req);
-    if (!authUser) {
-      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+    // path の簡易バリデーション（studentId 配下のみ・ディレクトリトラバーサルを禁止）
+    if (!path.startsWith(`${studentId}/`) || path.includes('..')) {
+      return NextResponse.json({ ok: false, error: 'invalid_path' }, { status: 400 });
     }
 
-    // 2) role（/api/session でセット済みクッキー。無ければ student 扱い）
-    const { role } = readSupabaseUserFromCookie(req.headers.get("cookie") || "");
-    const isHospital = role === "hospital";
-
-    // 3) 本人 or 病院なら許可
-    if (!(isHospital || authUser.id === studentId)) {
-      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    // Browser から送られてくる role Cookie をシンプルにチェック
+    const role = req.cookies.get('role')?.value;
+    if (role !== 'hospital') {
+      return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
 
-    // 4) パスの安全性
-    if (!path.startsWith(`${studentId}/`)) {
-      return NextResponse.json({ ok: false, error: "invalid path (must start with {studentId}/)" }, { status: 400 });
-    }
-    if (path.includes("..") || !/^[-_/.\w\u3040-\u30ff\u4e00-\u9faf]+$/.test(path)) {
-      return NextResponse.json({ ok: false, error: "invalid path" }, { status: 400 });
-    }
+    // service_role でサイン（閲覧専用に1分間だけ有効）
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+      auth: { persistSession: false },
+    });
 
-    // 5) 署名URL（5分）
-    const admin = createSupabaseAdmin();
-    const { data, error } = await admin.storage.from("documents").createSignedUrl(path, 60 * 5);
+    const { data, error } = await supabase
+      .storage
+      .from('student_documents')
+      .createSignedUrl(path, 60); // 60秒有効（必要に応じて延長可）
+
     if (error || !data?.signedUrl) {
-      return NextResponse.json({ ok: false, error: error?.message || "failed" }, { status: 500 });
+      return NextResponse.json({ ok: false, error: error?.message ?? 'sign_error' }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true, url: data.signedUrl }, { status: 200 });
   } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message ?? "unexpected error" }, { status: 500 });
+    console.error('[view-url] error', e);
+    return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 }

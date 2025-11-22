@@ -1,4 +1,3 @@
-// app/hospital/students/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -7,7 +6,6 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import StudentDocuments from "./_components/StudentDocuments";
-import { toPublicAvatarUrl } from "@/app/lib/storage/url";
 
 import {
   useFavoriteStudents,
@@ -37,11 +35,11 @@ type StudentRow = {
   region: string | null;
   prefecture: string | null;
 
-  duty_preference: string | null; // "可能" | "相談" | "不可" 等
+  duty_preference: string | null; // "可能" | "相談" | "不可"
   desired_salary_min: number | null;
-  major: string | null;           // CSV想定
+  major: string | null;           // CSV 想定
 
-  avatar_url: string | null;
+  avatar_url: string | null;      // 例: "20eb2484-.../avatar.jpg"
 
   updated_at: string | null;
 };
@@ -49,13 +47,24 @@ type StudentRow = {
 export default function StudentProfilePage() {
   const router = useRouter();
   const params = useParams();
-  const idParam = Array.isArray(params?.id) ? params.id[0] : ((params?.id as string) || "");
+  const idParam =
+    Array.isArray(params?.id) ? params.id[0] : ((params?.id as string) || "");
 
   const supabase = useMemo(() => createSupabaseBrowser(), []);
   const [row, setRow] = useState<StudentRow | null>(null);
   const [loading, setLoading] = useState(true);
 
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
+
+  /** avatars は public 運用なので URL を文字列で直組みする（最も確実） */
+  function buildAvatarUrl(avatarPath: string | null): string | undefined {
+    if (!avatarPath) return undefined;
+    // 先頭スラッシュを除去したバケット内パスに正規化
+    const clean = avatarPath.replace(/^\//, "");
+    const base = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars`;
+    // encodeURI で日本語/空白などを安全に
+    return `${base}/${encodeURI(clean)}`;
+  }
 
   /** 学生詳細の読み込み */
   useEffect(() => {
@@ -101,9 +110,6 @@ export default function StudentProfilePage() {
 
     const areaText = row.prefecture || row.region || "—";
 
-    // ここで公開URLに変換（Cookie不要）
-    const avatarUrl = toPublicAvatarUrl(row.avatar_url);
-
     return {
       id: row.id,
       displayName,
@@ -115,8 +121,8 @@ export default function StudentProfilePage() {
       duty: row.duty_preference ?? "—",
       email: row.email ?? "",
       phone: row.phone ?? "",
-      avatarUrl,
-      selfPr: "自己PRはまだ登録されていません。", // 将来 students 側の PR カラムへ差し替え
+      avatarUrl: buildAvatarUrl(row.avatar_url), // ← ここで確実にURL化
+      selfPr: "自己PRはまだ登録されていません。",
     };
   }, [row]);
 

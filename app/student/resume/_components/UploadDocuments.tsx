@@ -1,136 +1,77 @@
+// app/student/resume/_components/UploadDocuments.tsx
 "use client";
 
 import { useState } from "react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
-type Props = {
-  /** 学生の Supabase UID（page.tsx から渡される） */
-  studentId: string;
-};
+type Props = { studentId: string };
+type Kind = "transcript" | "certificate";
 
-type Preview = {
-  kind: "transcript" | "certificate";
-  fileName: string;
-  url: string; // 署名付きURL（5分有効）
-};
+// PDF/画像のみ許可（最大 10MB など任意）
+const ACCEPT = "application/pdf,image/*";
 
-/**
- * 成績証明書・資格証明書のアップロード UI
- * - Storage(documents) にアップロード
- * - /api/documents/sign で閲覧用の署名URLを取得
- * - student_documents に INSERT
- */
 export default function UploadDocuments({ studentId }: Props) {
   const supabase = createSupabaseBrowser();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [preview, setPreview] = useState<Preview | null>(null);
 
-  async function onFileChange(
-    e: React.ChangeEvent<HTMLInputElement>,
-    kind: "transcript" | "certificate"
-  ) {
+  async function handleChange(e: React.ChangeEvent<HTMLInputElement>, kind: Kind) {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setBusy(true);
     setMessage(null);
-    setPreview(null);
 
     try {
-      // 1) アップロード先キー（バケット内の相対パス）を作成
-      //    - 例: {uid}/transcript/1700000000000_成績証明書.pdf
-      const safeName = file.name.replace(/[^\w.\-]/g, "_");
-      const objectPath = `${studentId}/${kind}/${Date.now()}_${safeName}`;
-
-      // 2) Storage へアップロード（documents）
-      const { error: upErr } = await supabase.storage
-        .from("documents")
-        .upload(objectPath, file, { upsert: true, contentType: file.type });
-      if (upErr) throw upErr;
-
-      // 3) 署名付きURLを取得（閲覧用 5分）
-      const signRes = await fetch("/api/documents/sign", {
+      // 1) 署名付きアップロードURLを発行
+      const r = await fetch("/api/documents/upload-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ studentId, path: objectPath }),
+        body: JSON.stringify({ studentId, kind, filename: file.name }),
       });
+      const j = await r.json();
+      if (!r.ok || !j?.signedUrl || !j?.path) throw new Error(j?.error || "failed to issue upload url");
 
-      const signJson = await signRes.json();
-      if (!signRes.ok || !signJson?.ok) {
-        throw new Error(signJson?.error || "failed to sign url");
-      }
+      // 2) 直接 PUT
+      const put = await fetch(j.signedUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!put.ok) throw new Error("upload failed");
 
-      const signedUrl: string = signJson.url;
-
-      // 4) DB に記録（student_documents）
-      const { error: insErr } = await supabase
+      // 3) メタを student_documents に保存
+      const { error } = await supabase
         .from("student_documents")
         .insert({
           student_id: studentId,
           kind,
-          path: objectPath,
+          path: j.path,              // 例: {uid}/168...._file.pdf
+          title: kind === "transcript" ? "成績証明書" : "資格証明書",
           file_name: file.name,
-          content_type: file.type,
-          size: file.size,
+          mime_type: file.type || null,
         });
-      if (insErr) throw insErr;
+      if (error) throw error;
 
-      // 5) 画面表示（プレビューリンクなど）
-      setPreview({ kind, fileName: file.name, url: signedUrl });
       setMessage("アップロードしました。");
-      e.currentTarget.value = "";
+      e.currentTarget.value = ""; // input reset
     } catch (err: any) {
-      setMessage(
-        `アップロードに失敗しました: ${err?.message ?? "unknown error"}`
-      );
+      setMessage(`アップロードに失敗しました: ${err?.message ?? "unknown error"}`);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <div className="space-y-4">
+    <section className="space-y-4">
       <div>
-        <label className="block text-sm text-gray-600 mb-1">
-          成績証明書（PDF / 画像）
-        </label>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          disabled={busy}
-          onChange={(e) => onFileChange(e, "transcript")}
-        />
+        <label className="block text-sm text-gray-600 mb-1">成績証明書（PDF / 画像）</label>
+        <input type="file" accept={ACCEPT} disabled={busy} onChange={(e) => handleChange(e, "transcript")} />
       </div>
-
       <div>
-        <label className="block text-sm text-gray-600 mb-1">
-          資格証明書（PDF / 画像）
-        </label>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          disabled={busy}
-          onChange={(e) => onFileChange(e, "certificate")}
-        />
+        <label className="block text-sm text-gray-600 mb-1">資格証明書（PDF / 画像）</label>
+        <input type="file" accept={ACCEPT} disabled={busy} onChange={(e) => handleChange(e, "certificate")} />
       </div>
-
-      {preview && (
-        <div className="text-sm text-gray-700">
-          <span className="mr-2">直近アップロード:</span>
-          <a
-            href={preview.url}
-            target="_blank"
-            rel="noreferrer"
-            className="text-primary-600 underline"
-          >
-            {preview.fileName}（{preview.kind === "transcript" ? "成績証明" : "資格証明"}）
-          </a>
-          <span className="ml-2 text-gray-500">※ リンクは数分で失効します</span>
-        </div>
-      )}
-
       {message && <p className="text-sm text-gray-600">{message}</p>}
-    </div>
+    </section>
   );
 }

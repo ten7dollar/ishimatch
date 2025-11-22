@@ -1,3 +1,4 @@
+// app/hospital/students/[id]/_components/StudentDocuments.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -9,6 +10,7 @@ type DocRow = {
   title: string | null;
   file_name: string | null;
   mime_type: string | null;
+  size_bytes: number | null;
   path: string;
   created_at: string;
 };
@@ -16,41 +18,51 @@ type DocRow = {
 export default function StudentDocuments({ studentId }: { studentId: string }) {
   const sb = createSupabaseBrowser();
   const [list, setList] = useState<DocRow[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
-      const { data } = await sb
+      const { data, error } = await sb
         .from("student_documents")
-        .select("id,doc_type,title,file_name,mime_type,path,created_at")
+        .select("id,doc_type,title,file_name,mime_type,size_bytes,path,created_at")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false });
-      setList((data ?? []) as DocRow[]);
+      if (!cancelled) {
+        if (error) setErr(error.message);
+        setList((data ?? []) as DocRow[]);
+      }
     })();
-  }, [studentId]); // eslint-disable-line
+    return () => { cancelled = true; };
+  }, [sb, studentId]);
 
-  const onView = async (row: DocRow) => {
+  async function onView(row: DocRow) {
+    setErr(null);
+    setBusyId(row.id);
     try {
-      setBusy(true);
       const resp = await fetch("/api/documents/view-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",                     // ← 重要：Cookie を同送
         body: JSON.stringify({ studentId, path: row.path }),
-        credentials: "include",
       });
-      const json = await resp.json();
-      if (!resp.ok || !json?.url) throw new Error(json?.error || "unauthorized");
+      const json = await resp.json().catch(() => ({}));
+      if (!resp.ok || !json?.url) {
+        throw new Error(json?.error || `view-url failed (${resp.status})`);
+      }
       window.open(json.url, "_blank", "noopener");
     } catch (e: any) {
-      alert(`表示に失敗しました：${e?.message ?? "unknown error"}`);
+      setErr(e?.message ?? "閲覧に失敗しました");
     } finally {
-      setBusy(false);
+      setBusyId(null);
     }
-  };
+  }
 
   return (
     <section className="card p-4 space-y-3">
       <h3 className="font-semibold text-primary-700">提出書類</h3>
+      {err && <p className="text-sm text-red-600">{err}</p>}
       <ul className="divide-y border rounded">
         {list.map((row) => (
           <li key={row.id} className="flex items-center justify-between px-3 py-2">
@@ -59,15 +71,16 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
                 {row.title ?? (row.doc_type === "transcript" ? "成績証明書" : "資格証明書")}
               </p>
               <p className="text-xs text-gray-500">
-                {row.file_name} / {row.mime_type ?? "?"}
+                {row.file_name} / {row.mime_type ?? "?"} {row.size_bytes ? ` / ${Math.round(row.size_bytes/1024)}KB` : ""}
               </p>
+              <p className="text-xs text-gray-400">{new Date(row.created_at).toLocaleString()}</p>
             </div>
             <button
               className="text-sm text-primary-600 hover:underline disabled:opacity-50"
               onClick={() => onView(row)}
-              disabled={busy}
+              disabled={!!busyId}
             >
-              表示
+              {busyId === row.id ? "発行中…" : "表示"}
             </button>
           </li>
         ))}

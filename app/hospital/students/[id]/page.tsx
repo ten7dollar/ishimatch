@@ -1,3 +1,4 @@
+// app/hospital/students/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -6,6 +7,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import StudentDocuments from "./_components/StudentDocuments";
+import { toPublicAvatarUrl } from "@/app/lib/storage/url";
 
 import {
   useFavoriteStudents,
@@ -55,14 +57,6 @@ export default function StudentProfilePage() {
 
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
-  /** avatars は public 運用のため getPublicUrl でOK */
-  function buildAvatarUrl(avatarPath: string | null): string | undefined {
-    if (!avatarPath) return undefined;
-    const clean = avatarPath.replace(/^\//, "");
-    const { data } = supabase.storage.from("avatars").getPublicUrl(clean);
-    return data?.publicUrl || undefined;
-  }
-
   /** 学生詳細の読み込み */
   useEffect(() => {
     (async () => {
@@ -107,6 +101,9 @@ export default function StudentProfilePage() {
 
     const areaText = row.prefecture || row.region || "—";
 
+    // ここで公開URLに変換（Cookie不要）
+    const avatarUrl = toPublicAvatarUrl(row.avatar_url);
+
     return {
       id: row.id,
       displayName,
@@ -118,7 +115,7 @@ export default function StudentProfilePage() {
       duty: row.duty_preference ?? "—",
       email: row.email ?? "",
       phone: row.phone ?? "",
-      avatarUrl: buildAvatarUrl(row.avatar_url),
+      avatarUrl,
       selfPr: "自己PRはまだ登録されていません。", // 将来 students 側の PR カラムへ差し替え
     };
   }, [row]);

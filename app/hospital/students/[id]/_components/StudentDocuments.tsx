@@ -1,4 +1,3 @@
-// app/hospital/students/[id]/_components/StudentDocuments.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -11,7 +10,7 @@ type DocRow = {
   file_name: string | null;
   mime_type: string | null;
   size_bytes: number | null;
-  path: string;          // 画面では使わないが、一覧表示の並び替え等に利用するので保持
+  path: string;
   created_at: string;
 };
 
@@ -21,7 +20,6 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // 一覧取得
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -36,22 +34,26 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
         setList((data ?? []) as DocRow[]);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [sb, studentId]);
 
-  // 表示（＝署名付きURLを発行→新規タブで開く）
   async function onView(row: DocRow) {
     setErr(null);
     setBusyId(row.id);
     try {
-      const resp = await fetch("/api/documents/view-url", {
+      // --- JSON + Query の “二重化” で body が消える環境を拾う ---
+      const qs = new URLSearchParams({
+        studentId,
+        path: row.path,
+      }).toString();
+
+      const resp = await fetch(`/api/documents/view-url?${qs}`, {
         method: "POST",
-        credentials: "include", // Cookie(role, sb-access-token)を送る
+        credentials: "include", // Cookie を同送（role / sb-***）
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: row.id }), // ← id だけ渡す
+        body: JSON.stringify({ studentId, path: row.path }),
       });
 
       const json = await resp.json().catch(() => ({}));
@@ -79,24 +81,22 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
                 {row.title ?? (row.doc_type === "transcript" ? "成績証明書" : "資格証明書")}
               </p>
               <p className="text-xs text-gray-500">
-                {row.file_name} / {row.mime_type ?? "?"}
+                {row.file_name} / {row.mime_type ?? "?"}{" "}
                 {row.size_bytes ? ` / ${Math.round(row.size_bytes / 1024)}KB` : ""}
               </p>
               <p className="text-xs text-gray-400">
                 {new Date(row.created_at).toLocaleString()}
               </p>
             </div>
-
             <button
               className="text-sm text-primary-600 hover:underline disabled:opacity-50"
               onClick={() => onView(row)}
-              disabled={busyId === row.id}
+              disabled={!!busyId}
             >
               {busyId === row.id ? "発行中…" : "表示"}
             </button>
           </li>
         ))}
-
         {list.length === 0 && (
           <li className="px-3 py-6 text-sm text-gray-500 text-center">
             まだ提出がありません

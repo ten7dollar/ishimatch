@@ -16,33 +16,37 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
   const sb = createSupabaseBrowser();
   const [list, setList] = useState<DocRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
+      setErr(null);
       const { data, error } = await sb
         .from("student_documents")
         .select("id,title,path,file_name,mime_type,created_at")
         .eq("student_id", studentId)
         .order("created_at", { ascending: false });
-      if (!error) setList((data ?? []) as DocRow[]);
+      if (error) setErr(error.message);
+      setList((data ?? []) as DocRow[]);
     })();
-  }, [sb, studentId]);
+  }, [studentId, sb]);
 
   const onView = async (row: DocRow) => {
     try {
       setBusy(true);
-      // 閲覧用の署名URLを取得（Cookie を必ず同送）
+      setErr(null);
       const resp = await fetch("/api/documents/view-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        credentials: "include", // ← 病院ログインをサーバで認識させる
+        credentials: "include", // ← Cookie 必須
         body: JSON.stringify({ studentId, path: row.path }),
       });
       const json = await resp.json();
       if (!resp.ok || !json?.ok) throw new Error(json?.error || "failed");
-      window.open(json.url as string, "_blank", "noopener,noreferrer");
+      window.open(json.url, "_blank");
     } catch (e: any) {
-      alert(`表示に失敗しました：${e.message ?? e}`);
+      setErr(e?.message ?? "unknown error");
+      alert(`表示に失敗しました：${e?.message ?? e}`);
     } finally {
       setBusy(false);
     }
@@ -52,12 +56,11 @@ export default function StudentDocuments({ studentId }: { studentId: string }) {
     <section className="card p-4 space-y-3">
       <h3 className="font-semibold text-primary-700">提出書類</h3>
 
+      {err && <p className="text-sm text-red-600">{err}</p>}
+
       <ul className="divide-y border rounded">
         {list.map((row) => (
-          <li
-            key={row.id}
-            className="flex items-center justify-between px-3 py-2"
-          >
+          <li key={row.id} className="flex items-center justify-between px-3 py-2">
             <div className="min-w-0">
               <p className="font-medium truncate">{row.title}</p>
               <p className="text-xs text-gray-500">

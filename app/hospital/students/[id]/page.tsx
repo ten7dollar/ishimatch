@@ -13,7 +13,6 @@ import {
   type FavStudent,
 } from "../../_providers/favorite-students";
 
-/** Supabase: students テーブルの型（必要項目のみ） */
 type StudentRow = {
   id: string;
   name: string | null;
@@ -34,11 +33,11 @@ type StudentRow = {
   region: string | null;
   prefecture: string | null;
 
-  duty_preference: string | null;        // "可能" | "相談" | "不可" など
+  duty_preference: string | null;
   desired_salary_min: number | null;
-  major: string | null;                  // CSV 想定
+  major: string | null;
 
-  avatar_url: string | null;             // avatars/{uid}/avatar.png の相対パス
+  avatar_url: string | null;
 
   updated_at: string | null;
 };
@@ -46,35 +45,31 @@ type StudentRow = {
 export default function StudentProfilePage() {
   const router = useRouter();
   const params = useParams();
-  const studentId =
-    Array.isArray(params?.id) ? params.id[0] : ((params?.id as string) || "");
+  const idParam = Array.isArray(params?.id) ? params.id[0] : ((params?.id as string) || "");
 
   const supabase = useMemo(() => createSupabaseBrowser(), []);
   const [row, setRow] = useState<StudentRow | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 病院側お気に入り
   const { isFavorite, toggleFavorite } = useFavoriteStudents();
 
-  /** avatars バケットは public なので getPublicUrl でOK */
-  function getAvatarPublicUrl(avatarPath: string | null): string | undefined {
+  // avatars は public 運用なので getPublicUrl で OK
+  function buildAvatarUrl(avatarPath: string | null): string | undefined {
     if (!avatarPath) return undefined;
-    const { data } = supabase.storage
-      .from("avatars")
-      .getPublicUrl(avatarPath.replace(/^\//, "")); // 念のため先頭/を除去
+    const clean = avatarPath.replace(/^\//, "");
+    const { data } = supabase.storage.from("avatars").getPublicUrl(clean);
     return data?.publicUrl || undefined;
   }
 
-  /** 読み込み */
   useEffect(() => {
     (async () => {
-      if (!studentId) return;
+      if (!idParam) return;
       setLoading(true);
       try {
         const { data, error } = await supabase
           .from("students")
           .select("*")
-          .eq("id", studentId)
+          .eq("id", idParam)
           .maybeSingle();
         if (error) throw error;
         setRow((data as StudentRow) ?? null);
@@ -85,9 +80,8 @@ export default function StudentProfilePage() {
         setLoading(false);
       }
     })();
-  }, [supabase, studentId]);
+  }, [supabase, idParam]);
 
-  /** 表示用の正規化 */
   const display = useMemo(() => {
     if (!row) return null;
 
@@ -96,22 +90,12 @@ export default function StudentProfilePage() {
       `${row.last_name ?? ""} ${row.first_name ?? ""}`.trim() ||
       "（氏名未登録）";
 
-    const gradYearStr =
-      row.grad_year != null ? String(row.grad_year) : undefined;
-
+    const gradYearStr = row.grad_year != null ? String(row.grad_year) : undefined;
     const desiredSalaryText =
-      row.desired_salary_min != null
-        ? `${row.desired_salary_min}万円以上`
-        : "—";
-
+      row.desired_salary_min != null ? `${row.desired_salary_min}万円以上` : "—";
     const majors =
       row.major?.split(/[、,]/).map((s) => s.trim()).filter(Boolean) ?? [];
-
     const areaText = row.prefecture || row.region || "—";
-
-    const selfPr = "自己PRはまだ登録されていません。";
-
-    const avatarPublicUrl = getAvatarPublicUrl(row.avatar_url);
 
     return {
       id: row.id,
@@ -124,12 +108,11 @@ export default function StudentProfilePage() {
       duty: row.duty_preference ?? "—",
       email: row.email ?? "",
       phone: row.phone ?? "",
-      selfPr,
-      avatarPublicUrl,
+      avatarUrl: buildAvatarUrl(row.avatar_url),
+      selfPr: "自己PRはまだ登録されていません。",
     };
   }, [row]);
 
-  /** お気に入りトグル */
   const onToggleFavorite = () => {
     if (!row || !display) return;
     const payload: FavStudent = {
@@ -152,10 +135,7 @@ export default function StudentProfilePage() {
   if (!row || !display) {
     return (
       <main className="max-w-5xl mx-auto px-8 py-6 space-y-4">
-        <button
-          onClick={() => router.back()}
-          className="flex items-center text-primary-600 text-sm hover:underline"
-        >
+        <button onClick={() => router.back()} className="flex items-center text-primary-600 text-sm hover:underline">
           <ArrowLeft className="w-4 h-4 mr-1" />
           戻る
         </button>
@@ -169,33 +149,23 @@ export default function StudentProfilePage() {
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-8">
-      {/* 戻る */}
-      <button
-        onClick={() => router.back()}
-        className="flex items-center text-primary-600 text-sm hover:underline"
-      >
+      <button onClick={() => router.back()} className="flex items-center text-primary-600 text-sm hover:underline">
         <ArrowLeft className="w-4 h-4 mr-1" />
         戻る
       </button>
 
       <h1 className="text-xl font-semibold">学生プロフィール</h1>
-      <p className="text-text-muted text-sm">
-        {display.displayName} さんの詳細情報
-      </p>
+      <p className="text-text-muted text-sm">{display.displayName} さんの詳細情報</p>
 
-      {/* ── ヘッダーカード ── */}
+      {/* ヘッダー */}
       <section className="card p-6 space-y-4">
         <div className="flex items-start justify-between gap-6">
           {/* 左：基本情報 */}
           <div className="flex items-center gap-6">
             <div className="w-20 h-20 rounded-full bg-primary-500 text-white flex items-center justify-center text-2xl font-bold overflow-hidden">
-              {display.avatarPublicUrl ? (
+              {display.avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={display.avatarPublicUrl}
-                  alt="avatar"
-                  className="w-full h-full object-cover"
-                />
+                <img src={display.avatarUrl} alt="avatar" className="w-full h-full object-cover" />
               ) : (
                 display.displayName.slice(0, 2)
               )}
@@ -206,12 +176,7 @@ export default function StudentProfilePage() {
               <div className="flex gap-4 text-sm text-text-muted">
                 <span>卒業予定：{display.gradYearStr ?? "—"}年</span>
                 <span>希望勤務地：{display.areaText}</span>
-                <span>
-                  志望科：
-                  {display.majors.length > 0
-                    ? display.majors.join("、")
-                    : "—"}
-                </span>
+                <span>志望科：{display.majors.length > 0 ? display.majors.join("、") : "—"}</span>
               </div>
             </div>
           </div>
@@ -219,9 +184,7 @@ export default function StudentProfilePage() {
           {/* 右：アクション */}
           <div className="flex gap-2 shrink-0">
             <Link
-              href={`/hospital/scouts/new?studentId=${encodeURIComponent(
-                display.id
-              )}`}
+              href={`/hospital/scouts/new?studentId=${encodeURIComponent(display.id)}`}
               className="px-3 py-2 rounded bg-primary-600 text-white text-sm hover:bg-primary-700 transition"
             >
               スカウトを送る
@@ -249,36 +212,15 @@ export default function StudentProfilePage() {
       <section className="grid md:grid-cols-2 gap-4">
         <div className="card p-4 space-y-2 text-sm">
           <h4 className="font-semibold text-primary-700">希望条件</h4>
-          <p>
-            <span className="font-medium">希望勤務地：</span>
-            {display.areaText}
-          </p>
-          <p>
-            <span className="font-medium">志望診療科：</span>
-            {display.majors.length > 0
-              ? display.majors.join("、")
-              : "—"}
-          </p>
-          <p>
-            <span className="font-medium">希望年収：</span>
-            {display.desiredSalaryText}
-          </p>
+          <p><span className="font-medium">希望勤務地：</span>{display.areaText}</p>
+          <p><span className="font-medium">志望診療科：</span>{display.majors.length > 0 ? display.majors.join("、") : "—"}</p>
+          <p><span className="font-medium">希望年収：</span>{display.desiredSalaryText}</p>
         </div>
-
         <div className="card p-4 space-y-2 text-sm">
           <h4 className="font-semibold text-primary-700">勤務希望</h4>
-          <p>
-            <span className="font-medium">当直可否：</span>
-            {display.duty}
-          </p>
-          <p>
-            <span className="font-medium">メール：</span>
-            {display.email || "—"}
-          </p>
-          <p>
-            <span className="font-medium">電話：</span>
-            {display.phone || "—"}
-          </p>
+          <p><span className="font-medium">当直可否：</span>{display.duty}</p>
+          <p><span className="font-medium">メール：</span>{display.email || "—"}</p>
+          <p><span className="font-medium">電話：</span>{display.phone || "—"}</p>
         </div>
       </section>
 

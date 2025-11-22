@@ -1,64 +1,57 @@
+// app/api/documents/download/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseAdmin, readSupabaseUserFromCookie } from "@/app/lib/supabase/admin";
+import { cookies } from "next/headers";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import { createSupabaseAdmin } from "@/app/lib/supabase/admin";
 
-/**
- * GET /api/documents/download?id=＜student_documents.id＞
- *
- * - 認可: 本人 or 病院ログイン のみ
- * - 動作: documents バケットの private ファイルに対して署名付きURLを発行し 302 でリダイレクト
- */
 export async function GET(req: NextRequest) {
   try {
-    const id = req.nextUrl.searchParams.get("id") ?? "";
-    if (!id) {
+    const url = new URL(req.url);
+    const docId = url.searchParams.get("id");
+    if (!docId) {
       return NextResponse.json({ ok: false, error: "id is required" }, { status: 400 });
     }
 
-    // Cookie（/api/session が入れた role/email と Supabase の auth cookie）をヘッダから解析
-    const cookieHeader = req.headers.get("cookie") || "";
-    const { role, userId } = readSupabaseUserFromCookie(cookieHeader);
-    if (!userId) {
-      return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
-    }
+    // 1) ルートハンドラ用の Supabase（セッションは Cookie から自動で適用）
+    const sb = createRouteHandlerClient({ cookies });
 
-    const admin = createSupabaseAdmin();
-
-    // 対象ドキュメントを取得
-    const { data: doc, error: docErr } = await admin
+    // RLS で保護されたままメタデータ取得（未ログイン/権限なしならここで 401/404）
+    const { data: doc, error: selErr, status } = await sb
       .from("student_documents")
-      .select("id, student_id, path, file_name, mime_type")
-      .eq("id", id)
+      .select("student_id, path")
+      .eq("id", docId)
       .maybeSingle();
 
-    if (docErr || !doc) {
-      return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
+    if (selErr || !doc) {
+      return NextResponse.json(
+        { ok: false, error: selErr?.message || "not found" },
+        { status: status || 404 }
+      );
     }
 
-    // 認可チェック: 本人 or 病院
-    const allowed = role === "hospital" || userId === doc.student_id;
-    if (!allowed) {
-      return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
+    // 2) 路径の健全性（念のため）
+    const { student_id, path } = doc as { student_id: string; path: string };
+    if (!path.startsWith(`${student_id}/`) || path.includes("..")) {
+      return NextResponse.json({ ok: false, error: "invalid path" }, { status: 400 });
     }
 
-    // 署名付き URL （短期）を発行
-    const { data: signed, error: signErr } = await admin
+    // 3) Admin で署名 URL を発行（5分）
+    const admin = createSupabaseAdmin();
+    const { data: signed, error: sErr } = await admin
       .storage
       .from("documents")
-      .createSignedUrl(doc.path, 60 * 5); // 5分
+      .createSignedUrl(path, 60 * 5);
 
-    if (signErr || !signed?.signedUrl) {
-      return NextResponse.json({ ok: false, error: signErr?.message || "sign failed" }, { status: 500 });
+    if (sErr || !signed?.signedUrl) {
+      return NextResponse.json({ ok: false, error: sErr?.message || "sign failed" }, { status: 500 });
     }
 
-    // ファイルに 302 でリダイレクト
-    return NextResponse.redirect(signed.signedUrl);
+    // 4) 署名 URL へリダイレクト（ブラウザが直接 PDF/画像を開く）
+    return NextResponse.redirect(signed.signedUrl, 302);
   } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, error: e?.message ?? "unexpected error" },
-      { status: 500 },
-    );
+    return NextResponse.json({ ok: false, error: e?.message ?? "unexpected error" }, { status: 500 });
   }
 }

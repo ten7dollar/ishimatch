@@ -39,7 +39,7 @@ export default function StudentHospitalDetail() {
   const [loading, setLoading] = useState(true);
   const [heroUrl, setHeroUrl] = useState<string | null>(null);
 
-  // 病院情報の取得（既存どおり）
+  // 病院情報（既存のまま）
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -57,15 +57,18 @@ export default function StudentHospitalDetail() {
     })();
   }, [hospitalId, supabase]);
 
-  // HERO画像の取得（新規追加部分）
+  // HERO画像URLを /api/hospitals/hero から取得
   useEffect(() => {
     if (!hospitalId) return;
     (async () => {
       try {
-        const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(hospitalId)}`, {
-          method: "GET",
-          cache: "no-store",
-        });
+        const res = await fetch(
+          `/api/hospitals/hero?hospitalId=${encodeURIComponent(hospitalId)}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
         if (!res.ok) {
           console.warn("[student/hospitals/[id]] /api/hospitals/hero status", res.status);
           setHeroUrl(null);
@@ -101,13 +104,23 @@ export default function StudentHospitalDetail() {
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
       {/* Hero */}
       <section className="rounded-xl overflow-hidden border bg-gray-50">
-        <Image
-          src={heroSrc}
-          alt={row.name}
-          width={1200}
-          height={360}
-          className="object-cover w-full h-64"
-        />
+        {heroUrl ? (
+          // Supabase の署名付きURLは外部ドメインなので、next/image ではなく生の <img> を使う
+          <img
+            src={heroSrc}
+            alt={row.name}
+            className="object-cover w-full h-64"
+          />
+        ) : (
+          // デフォルト画像は public 配下なので next/image のままでOK
+          <Image
+            src={heroSrc}
+            alt={row.name}
+            width={1200}
+            height={360}
+            className="object-cover w-full h-64"
+          />
+        )}
         <div className="flex items-center justify-between px-6 py-4 bg-white border-t">
           <div>
             <h1 className="text-xl font-semibold text-primary-700">{row.name}</h1>
@@ -175,7 +188,7 @@ export default function StudentHospitalDetail() {
         </div>
       </section>
 
-      {/* PR ハイライト（公開/非公開の制御は将来 hospitals_resolved に載せたくなったときに拡張） */}
+      {/* PR ハイライト */}
       {row.pr_highlights && (
         <section className="card p-6 space-y-2">
           <h2 className="text-lg font-semibold text-primary-700">PRハイライト</h2>
@@ -255,7 +268,7 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
       onClick={toggle}
       disabled={busy}
       aria-label="検討に追加"
-      className={`px-3 py-1.5 rounded border text-sm flex itemsセンター gap-1 transition-colors ${
+      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition-colors ${
         active
           ? "bg-red-50 text-red-600 border-red-300"
           : "hover:bg-gray-50 text-gray-700 border-gray-300"

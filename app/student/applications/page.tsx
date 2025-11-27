@@ -1,4 +1,3 @@
-// app/student/applications/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -11,9 +10,9 @@ type Source = "scout" | "self";
 
 type Application = {
   id: string;
-  hospitalId: string;
+  hospitalId: string;      // ← /student/hospitals/[id] に飛ぶための公開ID (hospitals.id)
   hospitalName: string;
-  appliedAt: string; // ISO
+  appliedAt: string;       // ISO
   status: ApplicationStatus;
   source: Source;
   note?: string;
@@ -29,6 +28,12 @@ const TABS: Array<"すべて" | ApplicationStatus> = [
   "取消",
 ];
 
+type HospitalAccountLite = {
+  id: string;              // hospital_accounts.id ＝ applications.hospital_id
+  hospital_id: string | null;   // 公開ID (hospitals.id)
+  hospital_name: string | null; // 表示名
+};
+
 export default function ApplicationsPage() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
   const [tab, setTab] = useState<(typeof TABS)[number]>("すべて");
@@ -36,7 +41,7 @@ export default function ApplicationsPage() {
   const [rows, setRows] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
 
-  /** DBから応募履歴を取得（B案：2段階） */
+  /** DBから応募履歴を取得（applications → hospital_accounts） */
   const refresh = async () => {
     setLoading(true);
     try {
@@ -63,29 +68,45 @@ export default function ApplicationsPage() {
         return;
       }
 
-      // 2) 病院名は View(hospitals_resolved) を in(id, …) でまとめて取得
-      const hospitalIds = Array.from(new Set(apps.map((a) => a.hospital_id)));
-      const { data: hospRows, error: herr } = await supabase
-        .from("hospitals_resolved") // ★ 公開合成ビュー
-        .select("id,name")
-        .in("id", hospitalIds);
-      if (herr) throw herr;
+      // 2) 病院アカウント情報を hospital_accounts から取得
+      const hospitalAccountIds = Array.from(new Set(apps.map((a: any) => a.hospital_id)));
+      const { data: accRows, error: accErr } = await supabase
+        .from("hospital_accounts")
+        .select("id,hospital_id,hospital_name")
+        .in("id", hospitalAccountIds);
 
-      const nameMap = new Map<string, string>();
-      (hospRows ?? []).forEach((h: any) =>
-        nameMap.set(String(h.id), String(h.name))
-      );
+      if (accErr) throw accErr;
 
-      const mapped: Application[] = (apps as any[]).map((a) => ({
-        id: String(a.id),
-        hospitalId: String(a.hospital_id),
-        hospitalName: nameMap.get(String(a.hospital_id)) ?? "(名称未設定)",
-        appliedAt: new Date(a.created_at ?? Date.now()).toISOString(),
-        status: (a.status || "選考中") as ApplicationStatus,
-        source: (a.source || "self") as Source,
-        note: a.note ?? "",
-        tags: Array.isArray(a.tags) ? a.tags : [],
-      }));
+      const accMap = new Map<string, HospitalAccountLite>();
+      (accRows ?? []).forEach((ha: any) => {
+        accMap.set(String(ha.id), {
+          id: String(ha.id),
+          hospital_id: ha.hospital_id ? String(ha.hospital_id) : null,
+          hospital_name: ha.hospital_name ?? null,
+        });
+      });
+
+      const mapped: Application[] = (apps as any[]).map((a) => {
+        const acc = accMap.get(String(a.hospital_id));
+        const publicHospitalId = acc?.hospital_id ?? String(a.hospital_id); // /student/hospitals/[id] 用
+        const hospitalName = acc?.hospital_name ?? "(名称未設定)";
+
+        // ステータスは今は simple に "new" 等をそのまま日本語ラベルにせず保持しているので、
+        // 必要ならここでマッピングしてもよい（暫定そのまま）
+        const status: ApplicationStatus =
+          (a.status as ApplicationStatus) || ("選考中" as ApplicationStatus);
+
+        return {
+          id: String(a.id),
+          hospitalId: publicHospitalId,
+          hospitalName,
+          appliedAt: new Date(a.created_at ?? Date.now()).toISOString(),
+          status,
+          source: (a.source || "self") as Source,
+          note: a.note ?? "",
+          tags: Array.isArray(a.tags) ? a.tags : [],
+        };
+      });
 
       setRows(mapped);
     } catch (e: any) {
@@ -209,7 +230,7 @@ export default function ApplicationsPage() {
               <div className="mt-2 grid md:grid-cols-4 gap-2 text-sm text-gray-700">
                 <div>
                   <span className="text-gray-500">応募日：</span>
-                  {new Date(app.appliedAt).toLocaleDateString()}
+                  {new Date(app.appliedAt).toLocaleDateString("ja-JP")}
                 </div>
                 <div>
                   <span className="text-gray-500">ステータス：</span>
@@ -235,8 +256,10 @@ export default function ApplicationsPage() {
                 >
                   病院詳細
                 </Link>
-                {/* 将来：メッセージスレッド等に遷移 */}
-                <Link href="/student/scouts" className="px-3 py-1 rounded border text-sm">
+                <Link
+                  href="/student/scouts"
+                  className="px-3 py-1 rounded border text-sm"
+                >
                   スカウト一覧
                 </Link>
               </div>

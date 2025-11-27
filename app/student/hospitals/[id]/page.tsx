@@ -8,7 +8,7 @@ import { Heart } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { useDbFavorites } from "@/app/hooks/useDbFavorites";
 
-/* ---------- 型（public.hospitals） ---------- */
+/* ---------- 型（public.hospitals_resolved） ---------- */
 type HospitalRow = {
   id: string;
   name: string;
@@ -37,7 +37,9 @@ export default function StudentHospitalDetail() {
 
   const [row, setRow] = useState<HospitalRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [heroUrl, setHeroUrl] = useState<string | null>(null);
 
+  // 病院情報の取得（既存どおり）
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -55,6 +57,29 @@ export default function StudentHospitalDetail() {
     })();
   }, [hospitalId, supabase]);
 
+  // HERO画像の取得（新規追加部分）
+  useEffect(() => {
+    if (!hospitalId) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(hospitalId)}`, {
+          method: "GET",
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          console.warn("[student/hospitals/[id]] /api/hospitals/hero status", res.status);
+          setHeroUrl(null);
+          return;
+        }
+        const json = (await res.json()) as { url: string | null };
+        setHeroUrl(json.url || null);
+      } catch (e) {
+        console.error("[student/hospitals/[id]] hero fetch error", e);
+        setHeroUrl(null);
+      }
+    })();
+  }, [hospitalId]);
+
   if (loading) {
     return (
       <main className="max-w-5xl mx-auto px-8 py-6">
@@ -70,12 +95,14 @@ export default function StudentHospitalDetail() {
     );
   }
 
+  const heroSrc = heroUrl || "/images/hero-hospital.jpg";
+
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
-      {/* Hero（仮のサムネイル） */}
+      {/* Hero */}
       <section className="rounded-xl overflow-hidden border bg-gray-50">
         <Image
-          src="/images/hero-hospital.jpg"
+          src={heroSrc}
           alt={row.name}
           width={1200}
           height={360}
@@ -123,10 +150,22 @@ export default function StudentHospitalDetail() {
               ? row.address
               : `${row.prefecture ?? ""}${row.city ? "・" + row.city : ""}` || "—"}
           </p>
-          <p><span className="text-text-muted">救急区分：</span>{row.facility_type ?? "—"}</p>
-          <p><span className="text-text-muted">病床数：</span>{row.bed_count ?? "—"}</p>
-          <p><span className="text-text-muted">研修医数（1年目）：</span>{row.residents_first_year ?? "—"}</p>
-          <p><span className="text-text-muted">当直回数：</span>{row.duty_frequency ?? "—"}</p>
+          <p>
+            <span className="text-text-muted">救急区分：</span>
+            {row.facility_type ?? "—"}
+          </p>
+          <p>
+            <span className="text-text-muted">病床数：</span>
+            {row.bed_count ?? "—"}
+          </p>
+          <p>
+            <span className="text-text-muted">研修医数（1年目）：</span>
+            {row.residents_first_year ?? "—"}
+          </p>
+          <p>
+            <span className="text-text-muted">当直回数：</span>
+            {row.duty_frequency ?? "—"}
+          </p>
           <p>
             <span className="text-text-muted">年収：</span>
             {row.salary_1st_year_min
@@ -136,7 +175,7 @@ export default function StudentHospitalDetail() {
         </div>
       </section>
 
-      {/* PR ハイライト */}
+      {/* PR ハイライト（公開/非公開の制御は将来 hospitals_resolved に載せたくなったときに拡張） */}
       {row.pr_highlights && (
         <section className="card p-6 space-y-2">
           <h2 className="text-lg font-semibold text-primary-700">PRハイライト</h2>
@@ -159,8 +198,6 @@ export default function StudentHospitalDetail() {
 
 /* =========================================================
    検討リストトグル（DB）
-   - useDbFavorites が提供する最小APIだけに依存
-   - クリック直後に見た目を切替（楽観更新）→ フックの refresh で確定反映
 ========================================================= */
 function FavButton({ hospitalId }: { hospitalId: string }) {
   const fav = useDbFavorites() as {
@@ -218,7 +255,7 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
       onClick={toggle}
       disabled={busy}
       aria-label="検討に追加"
-      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition-colors ${
+      className={`px-3 py-1.5 rounded border text-sm flex itemsセンター gap-1 transition-colors ${
         active
           ? "bg-red-50 text-red-600 border-red-300"
           : "hover:bg-gray-50 text-gray-700 border-gray-300"

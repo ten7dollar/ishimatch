@@ -20,8 +20,8 @@ type Facility = "二次救急" | "三次救急" | "どちらでも" | "不明";
 type Duty = "~2回" | "3~4回" | "5回以上" | "特になし";
 
 type HospitalAccount = {
-  id: string;                    // auth.uid() と一致
-  hospital_id: string | null;    // 公開側（hospitals.id）への紐付け
+  id: string; // auth.uid() と一致
+  hospital_id: string | null; // 公開側（hospitals.id）への紐付け
   hospital_name: string | null;
   prefecture: string | null;
   region: string | null;
@@ -49,10 +49,8 @@ type HospitalAccount = {
   contact_email: string | null;
   contact_tel: string | null;
 
-  /* 画像（必要なら先にカラム追加）
-  hero_image_url?: string | null;
-  logo_url?: string | null;
-  */
+  hero_image_path: string | null;
+  logo_image_path: string | null;
 
   is_published: boolean | null;
 };
@@ -65,9 +63,11 @@ const L = ({ children }: { children: string }) => (
   <label className="block text-sm mb-1 text-text-muted">{children}</label>
 );
 
+const HOSPITAL_ASSETS_BUCKET = "hospital_assets";
+
 export default function HospitalPRPage() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
-  const [uid, setUid] = useState<string>("");          // auth.uid()
+  const [uid, setUid] = useState<string>(""); // auth.uid()
 
   /** ============ DB 読み / 保存 ============ */
   const [row, setRow] = useState<HospitalAccount | null>(null);
@@ -77,7 +77,9 @@ export default function HospitalPRPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         alert("ログインが必要です。");
         return;
@@ -128,10 +130,7 @@ export default function HospitalPRPage() {
       if (!uid) return;
       setSaving(true);
       try {
-        const { error } = await supabase
-          .from("hospital_accounts")
-          .update(payload)
-          .eq("id", uid);
+        const { error } = await supabase.from("hospital_accounts").update(payload).eq("id", uid);
         if (error) throw error;
         await load(); // 反映
       } catch (e: any) {
@@ -144,24 +143,85 @@ export default function HospitalPRPage() {
     [supabase, uid, load]
   );
 
-  /** ============ 画面制御 ============ */
-  const [isPublic, setIsPublic] = useState(true); // DBの is_published と同期
-
-  // Hero / Logo は今回はプレビューのみ（Storage導入は後続）
+  /** ============ 画像アップロード ============ */
   const heroInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [heroURL, setHeroURL] = useState<string | null>(null);
   const [logoURL, setLogoURL] = useState<string | null>(null);
+  const [uploadingHero, setUploadingHero] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  const uploadImage = useCallback(
+    async (file: File, kind: "hero" | "logo") => {
+      if (!uid) {
+        alert("ログイン情報が取得できませんでした。再読み込みしてください。");
+        return;
+      }
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+      const path = `${uid}/${kind}.${ext}`; // RLS: 先頭フォルダが uid
+
+      try {
+        if (kind === "hero") setUploadingHero(true);
+        if (kind === "logo") setUploadingLogo(true);
+
+        const { error: upErr } = await supabase.storage
+          .from(HOSPITAL_ASSETS_BUCKET)
+          .upload(path, file, { upsert: true });
+        if (upErr) throw upErr;
+
+        // DB にパスを保存
+        if (kind === "hero") {
+          await save({ hero_image_path: path });
+        } else {
+          await save({ logo_image_path: path });
+        }
+      } catch (e: any) {
+        console.error("[pr] upload image error:", e?.message);
+        alert(`画像のアップロードに失敗しました：${e?.message ?? "unknown"}`);
+      } finally {
+        if (kind === "hero") setUploadingHero(false);
+        if (kind === "logo") setUploadingLogo(false);
+      }
+    },
+    [supabase, uid, save]
+  );
+
   const onPickHero = () => heroInputRef.current?.click();
   const onPickLogo = () => logoInputRef.current?.click();
+
   const handleHeroSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f) setHeroURL(URL.createObjectURL(f));
+    const f = e.target.files?.[0];
+    if (f) {
+      setHeroURL(URL.createObjectURL(f)); // 即時プレビュー
+      void uploadImage(f, "hero");
+    }
   };
   const handleLogoSelect = (e: ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0]; if (f) setLogoURL(URL.createObjectURL(f));
+    const f = e.target.files?.[0];
+    if (f) {
+      setLogoURL(URL.createObjectURL(f));
+      void uploadImage(f, "logo");
+    }
   };
-  const handleHeroDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setHeroURL(URL.createObjectURL(f)); };
-  const handleLogoDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) setLogoURL(URL.createObjectURL(f)); };
+  const handleHeroDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) {
+      setHeroURL(URL.createObjectURL(f));
+      void uploadImage(f, "hero");
+    }
+  };
+  const handleLogoDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) {
+      setLogoURL(URL.createObjectURL(f));
+      void uploadImage(f, "logo");
+    }
+  };
+
+  /** ============ 画面制御 ============ */
+  const [isPublic, setIsPublic] = useState(true); // DBの is_published と同期
 
   // 病院概要
   const [editOverview, setEditOverview] = useState(false);
@@ -196,36 +256,69 @@ export default function HospitalPRPage() {
   });
 
   // 初期ロード
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
 
   // DB行を state に反映
   useEffect(() => {
     if (!row) return;
     setOverview({
       hospital_name: row.hospital_name ?? "",
-      prefecture   : row.prefecture ?? "",
-      address      : row.address ?? "",
-      region       : row.region ?? "",
-      city         : row.city ?? "",
+      prefecture: row.prefecture ?? "",
+      address: row.address ?? "",
+      region: row.region ?? "",
+      city: row.city ?? "",
       facility_type: (row.facility_type ?? "") as string,
-      bed_count    : row.bed_count?.toString() ?? "",
+      bed_count: row.bed_count?.toString() ?? "",
       residents_first_year: row.residents_first_year?.toString() ?? "",
-      residents_total     : row.residents_total?.toString() ?? "",
+      residents_total: row.residents_total?.toString() ?? "",
       duty_frequency: (row.duty_frequency ?? "") as string,
-      website_url  : row.website_url ?? "",
-      access       : row.access ?? "",
+      website_url: row.website_url ?? "",
+      access: row.access ?? "",
     });
     setPr({ text: row.pr_highlights ?? "" });
     setJob({
       salaryMin: row.salary_1st_year_min?.toString() ?? "",
       salaryMax: row.salary_1st_year_max?.toString() ?? "",
-      bonus    : row.bonus ?? "あり",
-      housing  : String(!!row.housing_allowance),
-      overtime : String(!!row.overtime_allowance),
-      commute  : String(!!row.commute_allowance),
+      bonus: row.bonus ?? "あり",
+      housing: String(!!row.housing_allowance),
+      overtime: String(!!row.overtime_allowance),
+      commute: String(!!row.commute_allowance),
     });
     setIsPublic(row.is_published ?? true);
   }, [row]);
+
+  // 画像の署名付きURL取得（DBに path がある場合）
+  useEffect(() => {
+    if (!row) return;
+
+    const fetchSignedUrls = async () => {
+      try {
+        if (row.hero_image_path) {
+          const { data, error } = await supabase.storage
+            .from(HOSPITAL_ASSETS_BUCKET)
+            .createSignedUrl(row.hero_image_path, 600);
+          if (!error) setHeroURL(data?.signedUrl ?? null);
+        } else {
+          setHeroURL(null);
+        }
+
+        if (row.logo_image_path) {
+          const { data, error } = await supabase.storage
+            .from(HOSPITAL_ASSETS_BUCKET)
+            .createSignedUrl(row.logo_image_path, 600);
+          if (!error) setLogoURL(data?.signedUrl ?? null);
+        } else {
+          setLogoURL(null);
+        }
+      } catch (e: any) {
+        console.error("[pr] fetch signed url error:", e?.message);
+      }
+    };
+
+    void fetchSignedUrls();
+  }, [row, supabase]);
 
   /* ================== 画面 ================== */
   const pubLabel = useMemo(() => (isPublic ? "公開中" : "非公開"), [isPublic]);
@@ -255,9 +348,7 @@ export default function HospitalPRPage() {
             <span className={`w-2 h-2 rounded-full ${dotColor}`} />
             <span className={`text-sm font-medium ${pubColor}`}>{pubLabel}</span>
           </div>
-          <button className="border border-primary-500 text-primary-600 rounded-md px-4 py-1 text-sm hover:bg-primary-50 transition">
-            プレビュー
-          </button>
+          {/* プレビューボタンは一旦削除 */}
           <button
             onClick={async () => {
               const next = !isPublic;
@@ -271,7 +362,7 @@ export default function HospitalPRPage() {
         </div>
       </div>
 
-      {/* ===== Hero画像・ロゴ（プレビューのみ） ===== */}
+      {/* ===== Hero画像・ロゴ ===== */}
       <section className="card p-6 space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary-700">Hero画像・ロゴ</h2>
@@ -292,12 +383,21 @@ export default function HospitalPRPage() {
             ) : (
               <>
                 <Upload className="w-6 h-6 mb-2 text-primary-500" />
-                <p className="text-sm">クリックまたはドラッグ&ドロップでアップロード</p>
+                <p className="text-sm">
+                  クリックまたはドラッグ&ドロップでアップロード
+                  {uploadingHero && "（アップロード中…）"}
+                </p>
                 <p className="text-xs">1920x1080px / JPG, PNG形式</p>
               </>
             )}
           </div>
-          <input ref={heroInputRef} type="file" accept="image/*" onChange={handleHeroSelect} hidden />
+          <input
+            ref={heroInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleHeroSelect}
+            hidden
+          />
         </div>
 
         {/* ロゴ */}
@@ -316,11 +416,20 @@ export default function HospitalPRPage() {
             ) : (
               <>
                 <Upload className="w-5 h-5 mb-2 text-primary-500" />
-                <p className="text-sm">ロゴをアップロード</p>
+                <p className="text-sm">
+                  ロゴをアップロード
+                  {uploadingLogo && "（アップロード中…）"}
+                </p>
               </>
             )}
           </div>
-          <input ref={logoInputRef} type="file" accept="image/*" onChange={handleLogoSelect} hidden />
+          <input
+            ref={logoInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleLogoSelect}
+            hidden
+          />
         </div>
       </section>
 
@@ -335,17 +444,21 @@ export default function HospitalPRPage() {
                 setEditOverview(false);
                 await save({
                   hospital_name: overview.hospital_name || null,
-                  prefecture   : overview.prefecture || null,
-                  address      : overview.address || null,
-                  region       : overview.region || null,
-                  city         : overview.city || null,
+                  prefecture: overview.prefecture || null,
+                  address: overview.address || null,
+                  region: overview.region || null,
+                  city: overview.city || null,
                   facility_type: (overview.facility_type as Facility) || null,
-                  bed_count    : overview.bed_count ? Number(overview.bed_count) : null,
-                  residents_first_year: overview.residents_first_year ? Number(overview.residents_first_year) : null,
-                  residents_total     : overview.residents_total ? Number(overview.residents_total) : null,
+                  bed_count: overview.bed_count ? Number(overview.bed_count) : null,
+                  residents_first_year: overview.residents_first_year
+                    ? Number(overview.residents_first_year)
+                    : null,
+                  residents_total: overview.residents_total
+                    ? Number(overview.residents_total)
+                    : null,
                   duty_frequency: (overview.duty_frequency as Duty) || null,
-                  website_url  : overview.website_url || null,
-                  access       : overview.access || null,
+                  website_url: overview.website_url || null,
+                  access: overview.access || null,
                 });
               }}
               className="bg-primary-500 text-white text-sm px-3 py-1 rounded-md flex items-center gap-1 hover:bg-primary-600 transition"
@@ -353,7 +466,10 @@ export default function HospitalPRPage() {
               <Save className="w-4 h-4" /> {saving ? "保存中…" : "保存"}
             </button>
           ) : (
-            <button onClick={() => setEditOverview(true)} className="flex items-center text-primary-600 text-sm hover:underline">
+            <button
+              onClick={() => setEditOverview(true)}
+              className="flex items-center text-primary-600 text-sm hover:underline"
+            >
               <Pencil className="w-4 h-4 mr-1" /> 編集
             </button>
           )}
@@ -380,7 +496,12 @@ export default function HospitalPRPage() {
                 type="text"
                 placeholder={f.ph}
                 value={(overview as any)[f.key] as string}
-                onChange={(e) => setOverview((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                onChange={(e) =>
+                  setOverview((prev) => ({
+                    ...prev,
+                    [f.key]: e.target.value,
+                  }))
+                }
                 disabled={!editOverview}
                 className={editOverview ? inputEditable : inputReadonly}
               />
@@ -405,7 +526,10 @@ export default function HospitalPRPage() {
               <Save className="w-4 h-4" /> {saving ? "保存中…" : "保存"}
             </button>
           ) : (
-            <button onClick={() => setEditPR(true)} className="flex items-center text-primary-600 text-sm hover:underline">
+            <button
+              onClick={() => setEditPR(true)}
+              className="flex items-center text-primary-600 text-sm hover:underline"
+            >
               <Pencil className="w-4 h-4 mr-1" /> 編集
             </button>
           )}
@@ -449,7 +573,10 @@ export default function HospitalPRPage() {
               <Save className="w-4 h-4" /> {saving ? "保存中…" : "保存"}
             </button>
           ) : (
-            <button onClick={() => setEditJob(true)} className="flex items-center text-primary-600 text-sm hover:underline">
+            <button
+              onClick={() => setEditJob(true)}
+              className="flex items-center text-primary-600 text-sm hover:underline"
+            >
               <Pencil className="w-4 h-4 mr-1" /> 編集
             </button>
           )}
@@ -466,7 +593,12 @@ export default function HospitalPRPage() {
                 type="number"
                 placeholder={f.ph}
                 value={(job as any)[f.key] as string}
-                onChange={(e) => setJob((prev) => ({ ...prev, [f.key]: e.target.value }))}
+                onChange={(e) =>
+                  setJob((prev) => ({
+                    ...prev,
+                    [f.key]: e.target.value,
+                  }))
+                }
                 disabled={!editJob}
                 className={editJob ? inputEditable : inputReadonly}
               />
@@ -477,7 +609,12 @@ export default function HospitalPRPage() {
             <L>賞与</L>
             <select
               value={job.bonus}
-              onChange={(e) => setJob((prev) => ({ ...prev, bonus: e.target.value }))}
+              onChange={(e) =>
+                setJob((prev) => ({
+                  ...prev,
+                  bonus: e.target.value,
+                }))
+              }
               disabled={!editJob}
               className={editJob ? inputEditable : inputReadonly}
             >
@@ -491,7 +628,12 @@ export default function HospitalPRPage() {
               <L>住宅手当</L>
               <select
                 value={job.housing}
-                onChange={(e) => setJob((prev) => ({ ...prev, housing: e.target.value }))}
+                onChange={(e) =>
+                  setJob((prev) => ({
+                    ...prev,
+                    housing: e.target.value,
+                  }))
+                }
                 disabled={!editJob}
                 className={editJob ? inputEditable : inputReadonly}
               >
@@ -503,7 +645,12 @@ export default function HospitalPRPage() {
               <L>時間外手当</L>
               <select
                 value={job.overtime}
-                onChange={(e) => setJob((prev) => ({ ...prev, overtime: e.target.value }))}
+                onChange={(e) =>
+                  setJob((prev) => ({
+                    ...prev,
+                    overtime: e.target.value,
+                  }))
+                }
                 disabled={!editJob}
                 className={editJob ? inputEditable : inputReadonly}
               >
@@ -515,7 +662,12 @@ export default function HospitalPRPage() {
               <L>通勤手当</L>
               <select
                 value={job.commute}
-                onChange={(e) => setJob((prev) => ({ ...prev, commute: e.target.value }))}
+                onChange={(e) =>
+                  setJob((prev) => ({
+                    ...prev,
+                    commute: e.target.value,
+                  }))
+                }
                 disabled={!editJob}
                 className={editJob ? inputEditable : inputReadonly}
               >
@@ -527,7 +679,7 @@ export default function HospitalPRPage() {
         </div>
       </section>
 
-      {/* ===== 資料アップロード（プレビューのみ） ===== */}
+      {/* ===== 資料アップロード（いまはローカルのみ） ===== */}
       <section className="card p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-primary-700">資料アップロード</h2>
@@ -553,27 +705,45 @@ function DocsManager() {
   const add = (files: FileList | null) => {
     if (!files || !files.length) return;
     const now = new Date();
-    const updated = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")}`;
-    const arr = Array.from(files).map((f, i) => ({ id: `${now.getTime()}-${i}`, name: f.name, type: "未設定", updated, public: true }));
-    setItems(prev => [...prev, ...arr]);
+    const updated = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}/${String(now.getDate()).padStart(2, "0")}`;
+    const arr = Array.from(files).map((f, i) => ({
+      id: `${now.getTime()}-${i}`,
+      name: f.name,
+      type: "未設定",
+      updated,
+      public: true,
+    }));
+    setItems((prev) => [...prev, ...arr]);
   };
-  const onDrop = (e: DragEvent<HTMLDivElement>) => { e.preventDefault(); add(e.dataTransfer.files); };
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    add(e.dataTransfer.files);
+  };
   const onChange = (e: ChangeEvent<HTMLInputElement>) => add(e.target.files);
-  const remove = (id: string) => setItems(prev => prev.filter(x => x.id !== id));
+  const remove = (id: string) => setItems((prev) => prev.filter((x) => x.id !== id));
 
   return (
     <>
       <div
         className="border-2 border-dashed rounded-lg h-32 flex flex-col items-center justify-center text-center text-text-muted hover:bg-primary-50 transition cursor-pointer relative"
         onClick={onPick}
-        onDragOver={(e)=>e.preventDefault()}
+        onDragOver={(e) => e.preventDefault()}
         onDrop={onDrop}
         role="button"
         aria-label="資料をアップロード"
       >
         <Upload className="w-6 h-6 mb-2 text-primary-500" />
         <p className="text-sm">クリックまたはドラッグ&ドロップでアップロード</p>
-        <input ref={inputRef} type="file" multiple onChange={onChange} className="absolute inset-0 opacity-0 cursor-pointer" />
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          onChange={onChange}
+          className="absolute inset-0 opacity-0 cursor-pointer"
+        />
       </div>
 
       <div className="overflow-x-auto">
@@ -597,13 +767,25 @@ function DocsManager() {
                   <input
                     type="checkbox"
                     checked={d.public}
-                    onChange={() => setItems(prev => prev.map(x => x.id === d.id ? { ...x, public: !x.public } : x))}
+                    onChange={() =>
+                      setItems((prev) =>
+                        prev.map((x) => (x.id === d.id ? { ...x, public: !x.public } : x))
+                      )
+                    }
                     className="h-4 w-4 accent-primary-500"
                   />
                 </td>
                 <td className="py-2 px-4 flex items-center gap-2 text-primary-600">
-                  <button title="プレビュー"><Eye className="w-4 h-4" /></button>
-                  <button title="削除" className="text-red-500 hover:text-red-700" onClick={() => remove(d.id)}><Trash2 className="w-4 h-4" /></button>
+                  <button title="プレビュー">
+                    <Eye className="w-4 h-4" />
+                  </button>
+                  <button
+                    title="削除"
+                    className="text-red-500 hover:text-red-700"
+                    onClick={() => remove(d.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </td>
               </tr>
             ))}

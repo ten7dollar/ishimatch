@@ -213,7 +213,7 @@ export default function StudentDashboard() {
           return;
         }
 
-        // シンプルなシャッフルでランダム3件（必要なら ranking の病院を除外してもOK）
+        // シンプルなシャッフルでランダム3件
         const shuffled = [...list].sort(() => Math.random() - 0.5);
         setRecommended(shuffled.slice(0, 3));
       } catch (e) {
@@ -260,46 +260,45 @@ export default function StudentDashboard() {
   return (
     <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-10">
       {/* ヘッダー：タイトル + KPI（右上） */}
-      <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+      <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
           <h1>ダッシュボード</h1>
           <p className="text-text-muted">あなたに最適な研修病院を見つけましょう</p>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-2 gap-3 md:min-w-[260px]">
+        <div className="grid grid-cols-2 gap-4 md:min-w-[320px]">
           <Link
             href="/student/saved"
-            className="card hover:shadow-md transition shadow-sm px-4 py-3 flex flex-col justify-between"
+            className="rounded-2xl border border-blue-100 bg-white px-6 py-5 shadow-[0_14px_35px_rgba(15,23,42,0.10)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
               <p className="text-xs text-text-muted">検討リスト</p>
-              <Heart className="w-4 h-4 text-primary-600" />
+              <Heart className="w-5 h-5 text-primary-600" />
             </div>
-            <p className="text-xl font-bold text-primary-600 mt-1">{favoritesCount}</p>
+            <p className="text-3xl font-bold text-primary-600 mt-1">{favoritesCount}</p>
           </Link>
 
           <Link
             href="/student/scouts"
-            className="card hover:shadow-md transition shadow-sm px-4 py-3 flex flex-col justify-between"
+            className="rounded-2xl border border-blue-100 bg-white px-6 py-5 shadow-[0_14px_35px_rgba(15,23,42,0.10)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
               <p className="text-xs text-text-muted">未読スカウト</p>
-              <MessageCircle className="w-4 h-4 text-primary-600" />
+              <MessageCircle className="w-5 h-5 text-primary-600" />
             </div>
-            <p className="text-xl font-bold text-primary-600 mt-1">{unreadCount}</p>
+            <p className="text-3xl font-bold text-primary-600 mt-1">{unreadCount}</p>
           </Link>
         </div>
       </header>
 
       {/* 初年度年収ランキング */}
-      <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-primary-600" />
-          <h2 className="text-lg font-semibold text-primary-700">初年度年収ランキング</h2>
+      <section className="space-y-4 pt-2 pb-6 border-b border-slate-100">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary-600" />
+            <h2 className="text-lg font-semibold text-primary-700">初年度年収ランキング</h2>
+          </div>
         </div>
-        <p className="text-xs text-text-muted">
-          salary_1st_year_max が高い順に上位3病院を表示しています。
-        </p>
 
         <div className="overflow-x-auto pb-2">
           <div className="flex gap-4 min-w-full">
@@ -321,42 +320,54 @@ export default function StudentDashboard() {
                 50
               );
 
+              // 1位はゴールド寄り、2位/3位はシルバー寄りのグラデーション枠
+              const gradientClasses =
+                idx === 0
+                  ? "from-amber-300/70 via-yellow-200/70 to-amber-300/70"
+                  : "from-slate-200/80 via-gray-200/80 to-slate-200/80";
+
               return (
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="min-w-[260px] max-w-[320px] bg-white rounded-2xl shadow-sm hover:shadow-md transition flex-shrink-0 border border-gray-100"
+                  className="min-w-[260px] max-w-[320px] flex-shrink-0"
                 >
-                  <div className="w-full h-32 rounded-t-2xl overflow-hidden">
-                    {rankingHeroMap[h.id] ? (
-                      <img
-                        src={hero}
-                        alt={h.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={hero}
-                        alt={h.name}
-                        width={400}
-                        height={128}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
-                  <div className="p-4 space-y-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                          {h.prefecture ?? "—"}・初期
-                        </span>
-                        <span className="mt-1 text-sm font-semibold text-primary-700 line-clamp-1">
-                          {idx + 1}位：{h.name}
-                        </span>
+                  <div
+                    className={`rounded-2xl bg-gradient-to-r ${gradientClasses} p-[2px] shadow-[0_12px_30px_rgba(15,23,42,0.18)]`}
+                  >
+                    <div className="bg-white rounded-[18px] overflow-hidden">
+                      <div className="w-full h-32 overflow-hidden">
+                        {rankingHeroMap[h.id] ? (
+                          <img
+                            src={hero}
+                            alt={h.name}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <Image
+                            src={hero}
+                            alt={h.name}
+                            width={400}
+                            height={128}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="p-4 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex flex-col">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                              {h.prefecture ?? "—"}・初期
+                            </span>
+                            <span className="mt-1 text-sm font-semibold text-primary-700 line-clamp-1">
+                              {idx + 1}位：{h.name}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-lg font-bold text-primary-700">{salaryText}</p>
+                        <p className="text-xs text-text-muted leading-relaxed">{pr}</p>
                       </div>
                     </div>
-                    <p className="text-lg font-bold text-primary-600">{salaryText}</p>
-                    <p className="text-xs text-text-muted leading-relaxed">{pr}</p>
                   </div>
                 </Link>
               );
@@ -366,7 +377,7 @@ export default function StudentDashboard() {
       </section>
 
       {/* あなたへのおすすめ（DBからランダム3件） */}
-      <section className="space-y-4">
+      <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
         <h2 className="text-lg font-semibold text-primary-700">あなたへのおすすめ</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {recommended.length === 0 ? (
@@ -385,7 +396,7 @@ export default function StudentDashboard() {
               return (
                 <div
                   key={h.id}
-                  className="card hover:shadow-md transition shadow-sm p-4 flex flex-col justify-between"
+                  className="rounded-2xl border border-blue-100 bg-white hover:bg-white shadow-[0_10px_25px_rgba(15,23,42,0.07)] hover:shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition p-4 flex flex-col justify-between"
                 >
                   <div className="w-full h-24 rounded-xl overflow-hidden mb-3">
                     {recommendedHeroMap[h.id] ? (
@@ -464,13 +475,13 @@ export default function StudentDashboard() {
       </section>
 
       {/* 病院を探す（検索導線） */}
-      <section className="grid md:grid-cols-1 gap-6">
+      <section className="grid md:grid-cols-1 gap-6 pt-4">
         <Link
           href="/student/browse"
-          className="card group hover:shadow-md transition shadow-sm"
+          className="rounded-2xl border border-primary-100 bg-primary-50/60 hover:bg-primary-50 shadow-sm hover:shadow-md transition group"
         >
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-full bg-primary-50">
+          <div className="flex items-start gap-3 px-5 py-4">
+            <div className="p-2 rounded-full bg-white/70">
               <Filter className="w-5 h-5 text-primary-600" />
             </div>
             <div className="flex-1">
@@ -486,8 +497,6 @@ export default function StudentDashboard() {
           </div>
         </Link>
       </section>
-
-      {/* 「最近見た病院」「最近の通知」は削除 */}
     </main>
   );
 }

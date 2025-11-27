@@ -15,7 +15,7 @@ import {
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { useFavoriteHospitals } from "../_providers/favorite-hospitals";
 
-/* ---------- 型（Ranking / おすすめ / 応募履歴） ---------- */
+/* ---------- 型（Ranking / おすすめ） ---------- */
 type HospitalRow = {
   id: string;
   name: string;
@@ -27,21 +27,6 @@ type HospitalRow = {
 };
 
 type HeroMap = Record<string, string | null>;
-
-type ApplicationRow = {
-  id: string;
-  hospital_id: string;
-  status: string | null;
-  created_at: string;
-};
-
-type ApplicationItem = {
-  id: string;
-  hospitalId: string;
-  hospitalName: string;
-  status: string | null;
-  createdAt: string;
-};
 
 const formatSalary = (max: number | null, min?: number | null) => {
   if (!max) return "—";
@@ -265,71 +250,6 @@ export default function StudentDashboard() {
     })();
   }, [recommended]);
 
-  /* ========== 最近の応募履歴（上から3件） ========== */
-
-  const [applications, setApplications] = useState<ApplicationItem[]>([]);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (!user) {
-          setApplications([]);
-          return;
-        }
-
-        const { data, error } = await supabase
-          .from("hospital_applications")
-          .select("id,hospital_id,status,created_at")
-          .eq("student_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(3);
-
-        if (error) {
-          console.error("[dashboard] applications fetch error", error.message);
-          setApplications([]);
-          return;
-        }
-
-        const rows = (data ?? []) as ApplicationRow[];
-        if (!rows.length) {
-          setApplications([]);
-          return;
-        }
-
-        const ids = Array.from(new Set(rows.map((r) => r.hospital_id)));
-        const { data: hospitals, error: hospErr } = await supabase
-          .from("hospital_accounts")
-          .select("id,hospital_name")
-          .in("id", ids);
-
-        if (hospErr) {
-          console.error("[dashboard] hospital_accounts fetch error", hospErr.message);
-        }
-
-        const nameMap = new Map<string, string>();
-        (hospitals ?? []).forEach((h: any) => {
-          nameMap.set(String(h.id), String(h.hospital_name ?? "名称未設定"));
-        });
-
-        const mapped: ApplicationItem[] = rows.map((r) => ({
-          id: String(r.id),
-          hospitalId: String(r.hospital_id),
-          hospitalName: nameMap.get(String(r.hospital_id)) ?? "名称未設定",
-          status: r.status ?? null,
-          createdAt: r.created_at,
-        }));
-
-        setApplications(mapped);
-      } catch (e: any) {
-        console.error("[dashboard] applications unexpected error", e?.message || e);
-        setApplications([]);
-      }
-    })();
-  }, [supabase]);
-
   return (
     <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-10">
       {/* ヘッダー：タイトル + KPI（右上） */}
@@ -411,11 +331,12 @@ export default function StudentDashboard() {
                   href={`/student/hospitals/${h.id}`}
                   className="min-w-[260px] max-w-[320px] flex-shrink-0"
                 >
-                  <div className="rounded-2xl border border-slate-200 bg-white shadow-[0_8px_20px_rgba(15,23,42,0.10)] hover:shadow-[0_12px_26px_rgba(15,23,42,0.16)] transition flex flex-col h-full">
+                  {/* ★ 影・枠なしのシンプルな白カード */}
+                  <div className="rounded-2xl bg-white flex flex-col h-full">
                     {/* ランクバッジ */}
                     <div className="px-4 pt-3 flex justify-between items-center">
                       <span
-                        className={`text-[11px] px-2 py-0.5 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}
+                        className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}
                       >
                         {rankLabel}
                       </span>
@@ -557,54 +478,6 @@ export default function StudentDashboard() {
             })
           )}
         </div>
-      </section>
-
-      {/* 最近の応募履歴 */}
-      <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
-        <h2 className="text-xl font-bold text-primary-800">最近の応募履歴</h2>
-        {applications.length === 0 ? (
-          <p className="text-sm text-text-muted">
-            まだ応募履歴がありません。気になる病院には積極的に応募してみましょう。
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {applications.map((app) => (
-              <Link
-                key={app.id}
-                href={`/student/applications?focus=${encodeURIComponent(app.id)}`}
-                className="block rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition shadow-sm"
-              >
-                <div className="px-5 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {app.hospitalName}
-                    </p>
-                    <p className="text-xs text-text-muted mt-1">
-                      応募日：{new Date(app.createdAt).toLocaleDateString("ja-JP")}
-                      {app.status && `　ステータス：${app.status}`}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Link
-                      href={`/student/hospitals/${encodeURIComponent(app.hospitalId)}`}
-                      className="px-3 py-1 rounded-full border border-slate-300 text-xs text-slate-700 hover:bg-slate-100"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      病院詳細
-                    </Link>
-                    <Link
-                      href="/student/applications"
-                      className="px-3 py-1 rounded-full border border-primary-500 text-xs text-primary-700 hover:bg-primary-50"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      応募一覧へ
-                    </Link>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
       </section>
 
       {/* 病院を探す（検索導線） */}

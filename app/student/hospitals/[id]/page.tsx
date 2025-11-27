@@ -38,8 +38,9 @@ export default function StudentHospitalDetail() {
   const [row, setRow] = useState<HospitalRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [heroUrl, setHeroUrl] = useState<string | null>(null);
+  const [isPublished, setIsPublished] = useState<boolean>(true); // PR公開フラグ
 
-  // 病院情報（既存のまま）
+  // 病院情報（hospitals_resolved）取得
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -57,7 +58,7 @@ export default function StudentHospitalDetail() {
     })();
   }, [hospitalId, supabase]);
 
-  // HERO画像URLを /api/hospitals/hero から取得
+  // HERO画像URL + PR公開フラグを /api/hospitals/hero から取得
   useEffect(() => {
     if (!hospitalId) return;
     (async () => {
@@ -72,13 +73,16 @@ export default function StudentHospitalDetail() {
         if (!res.ok) {
           console.warn("[student/hospitals/[id]] /api/hospitals/hero status", res.status);
           setHeroUrl(null);
+          setIsPublished(true); // エラー時は公開扱いにしておく
           return;
         }
-        const json = (await res.json()) as { url: string | null };
+        const json = (await res.json()) as { url: string | null; isPublished?: boolean };
         setHeroUrl(json.url || null);
+        setIsPublished(json.isPublished ?? true);
       } catch (e) {
         console.error("[student/hospitals/[id]] hero fetch error", e);
         setHeroUrl(null);
+        setIsPublished(true);
       }
     })();
   }, [hospitalId]);
@@ -105,14 +109,8 @@ export default function StudentHospitalDetail() {
       {/* Hero */}
       <section className="rounded-xl overflow-hidden border bg-gray-50">
         {heroUrl ? (
-          // Supabase の署名付きURLは外部ドメインなので、next/image ではなく生の <img> を使う
-          <img
-            src={heroSrc}
-            alt={row.name}
-            className="object-cover w-full h-64"
-          />
+          <img src={heroSrc} alt={row.name} className="object-cover w-full h-64" />
         ) : (
-          // デフォルト画像は public 配下なので next/image のままでOK
           <Image
             src={heroSrc}
             alt={row.name}
@@ -188,8 +186,8 @@ export default function StudentHospitalDetail() {
         </div>
       </section>
 
-      {/* PR ハイライト */}
-      {row.pr_highlights && (
+      {/* PR ハイライト：isPublished が true のときだけ表示 */}
+      {isPublished && row.pr_highlights && (
         <section className="card p-6 space-y-2">
           <h2 className="text-lg font-semibold text-primary-700">PRハイライト</h2>
           <p className="text-sm whitespace-pre-wrap leading-relaxed">{row.pr_highlights}</p>

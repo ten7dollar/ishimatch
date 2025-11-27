@@ -262,20 +262,22 @@ export default function StudentDashboard() {
       {/* ヘッダー：タイトル + KPI（右上） */}
       <header className="flex flex-col md:flex-row md:items-start md:justify-between gap-4 pb-4 border-b border-slate-100">
         <div>
-          <h1>ダッシュボード</h1>
-          <p className="text-text-muted">あなたに最適な研修病院を見つけましょう</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-slate-900">ダッシュボード</h1>
+          <p className="text-sm md:text-base text-text-muted mt-1">
+            あなたに最適な研修病院を見つけましょう
+          </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 md:min-w-[320px]">
+        <div className="grid grid-cols-2 gap-4 md:min-w-[340px]">
           <Link
             href="/student/saved"
             className="rounded-2xl border border-blue-100 bg-white px-6 py-5 shadow-[0_14px_35px_rgba(15,23,42,0.10)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <p className="text-xs text-text-muted">検討リスト</p>
+              <p className="text-xs font-semibold text-slate-500">検討リスト</p>
               <Heart className="w-5 h-5 text-primary-600" />
             </div>
-            <p className="text-3xl font-bold text-primary-600 mt-1">{favoritesCount}</p>
+            <p className="text-3xl font-bold text-primary-600 mt-2">{favoritesCount}</p>
           </Link>
 
           <Link
@@ -283,10 +285,10 @@ export default function StudentDashboard() {
             className="rounded-2xl border border-blue-100 bg-white px-6 py-5 shadow-[0_14px_35px_rgba(15,23,42,0.10)] hover:shadow-[0_18px_40px_rgba(15,23,42,0.16)] transition flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <p className="text-xs text-text-muted">未読スカウト</p>
+              <p className="text-xs font-semibold text-slate-500">未読スカウト</p>
               <MessageCircle className="w-5 h-5 text-primary-600" />
             </div>
-            <p className="text-3xl font-bold text-primary-600 mt-1">{unreadCount}</p>
+            <p className="text-3xl font-bold text-primary-600 mt-2">{unreadCount}</p>
           </Link>
         </div>
       </header>
@@ -295,8 +297,8 @@ export default function StudentDashboard() {
       <section className="space-y-4 pt-2 pb-6 border-b border-slate-100">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary-600" />
-            <h2 className="text-lg font-semibold text-primary-700">初年度年収ランキング</h2>
+            <TrendingUp className="w-6 h-6 text-primary-600" />
+            <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
           </div>
         </div>
 
@@ -320,11 +322,13 @@ export default function StudentDashboard() {
                 50
               );
 
-              // 1位はゴールド寄り、2位/3位はシルバー寄りのグラデーション枠
+              // 1位ゴールド, 2位シルバー, 3位ブロンズのグラデーション枠
               const gradientClasses =
                 idx === 0
-                  ? "from-amber-300/70 via-yellow-200/70 to-amber-300/70"
-                  : "from-slate-200/80 via-gray-200/80 to-slate-200/80";
+                  ? "from-amber-400 via-yellow-300 to-amber-500" // gold
+                  : idx === 1
+                  ? "from-slate-300 via-gray-200 to-slate-400"   // silver
+                  : "from-orange-500 via-amber-400 to-orange-600"; // bronze
 
               return (
                 <Link
@@ -333,7 +337,7 @@ export default function StudentDashboard() {
                   className="min-w-[260px] max-w-[320px] flex-shrink-0"
                 >
                   <div
-                    className={`rounded-2xl bg-gradient-to-r ${gradientClasses} p-[2px] shadow-[0_12px_30px_rgba(15,23,42,0.18)]`}
+                    className={`rounded-2xl bg-gradient-to-r ${gradientClasses} p-[3px] shadow-[0_8px_22px_rgba(15,23,42,0.18)]`}
                   >
                     <div className="bg-white rounded-[18px] overflow-hidden">
                       <div className="w-full h-32 overflow-hidden">
@@ -359,12 +363,12 @@ export default function StudentDashboard() {
                             <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
                               {h.prefecture ?? "—"}・初期
                             </span>
-                            <span className="mt-1 text-sm font-semibold text-primary-700 line-clamp-1">
+                            <span className="mt-1 text-sm font-semibold text-primary-800 line-clamp-1">
                               {idx + 1}位：{h.name}
                             </span>
                           </div>
                         </div>
-                        <p className="text-lg font-bold text-primary-700">{salaryText}</p>
+                        <p className="text-lg font-bold text-primary-800">{salaryText}</p>
                         <p className="text-xs text-text-muted leading-relaxed">{pr}</p>
                       </div>
                     </div>
@@ -378,7 +382,7 @@ export default function StudentDashboard() {
 
       {/* あなたへのおすすめ（DBからランダム3件） */}
       <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
-        <h2 className="text-lg font-semibold text-primary-700">あなたへのおすすめ</h2>
+        <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
         <div className="grid md:grid-cols-3 gap-6">
           {recommended.length === 0 ? (
             <p className="text-sm text-text-muted">
@@ -419,7 +423,7 @@ export default function StudentDashboard() {
                   {/* 上部：タイトルとタグ */}
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <h3 className="text-base font-semibold text-primary-700 line-clamp-2">
+                      <h3 className="text-base font-semibold text-primary-800 line-clamp-2">
                         {h.name}
                       </h3>
                       <p className="text-xs text-text-muted">
@@ -486,7 +490,7 @@ export default function StudentDashboard() {
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-primary-700">病院を探す</h2>
+                <h2 className="text-lg md:text-xl font-bold text-primary-800">病院を探す</h2>
                 <ArrowRight className="w-5 h-5 text-primary-600 opacity-0 group-hover:opacity-100 transition" />
               </div>
               <p className="text-sm text-text-muted mt-1">希望条件を指定して絞り込み</p>

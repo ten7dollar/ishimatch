@@ -27,9 +27,6 @@ type HospitalRow = {
   pr_highlights: string | null;
 };
 
-/* =========================================================
-   ページ本体
-========================================================= */
 export default function StudentHospitalDetail() {
   const params = useParams();
   const hospitalId = Array.isArray(params?.id) ? params.id[0] : (params?.id as string);
@@ -37,10 +34,11 @@ export default function StudentHospitalDetail() {
 
   const [row, setRow] = useState<HospitalRow | null>(null);
   const [loading, setLoading] = useState(true);
+
   const [heroUrl, setHeroUrl] = useState<string | null>(null);
   const [isPublished, setIsPublished] = useState<boolean>(true); // PR公開フラグ
 
-  // 病院情報（hospitals_resolved）取得
+  // 病院基本情報（hospitals_resolved）を取得
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -58,22 +56,19 @@ export default function StudentHospitalDetail() {
     })();
   }, [hospitalId, supabase]);
 
-  // HERO画像URL + PR公開フラグを /api/hospitals/hero から取得
+  // PR公開フラグ + HERO画像URL を API から取得
   useEffect(() => {
     if (!hospitalId) return;
     (async () => {
       try {
         const res = await fetch(
           `/api/hospitals/hero?hospitalId=${encodeURIComponent(hospitalId)}`,
-          {
-            method: "GET",
-            cache: "no-store",
-          }
+          { method: "GET", cache: "no-store" }
         );
         if (!res.ok) {
           console.warn("[student/hospitals/[id]] /api/hospitals/hero status", res.status);
           setHeroUrl(null);
-          setIsPublished(true); // エラー時は公開扱いにしておく
+          setIsPublished(true);
           return;
         }
         const json = (await res.json()) as { url: string | null; isPublished?: boolean };
@@ -102,13 +97,14 @@ export default function StudentHospitalDetail() {
     );
   }
 
-  const heroSrc = heroUrl || "/images/hero-hospital.jpg";
+  // 非公開のときは常にデフォルト画像
+  const heroSrc = isPublished && heroUrl ? heroUrl : "/images/hero-hospital.jpg";
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
       {/* Hero */}
       <section className="rounded-xl overflow-hidden border bg-gray-50">
-        {heroUrl ? (
+        {isPublished && heroUrl ? (
           <img src={heroSrc} alt={row.name} className="object-cover w-full h-64" />
         ) : (
           <Image
@@ -119,12 +115,27 @@ export default function StudentHospitalDetail() {
             className="object-cover w-full h-64"
           />
         )}
-        <div className="flex items-center justify-between px-6 py-4 bg-white border-t">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-6 py-4 bg-white border-t">
           <div>
             <h1 className="text-xl font-semibold text-primary-700">{row.name}</h1>
             <p className="text-sm text-text-muted">
               {`${row.prefecture ?? "—"}・${row.city ?? "—"}（${row.region ?? "—"}）`}
             </p>
+
+            {!isPublished && (
+              <div className="mt-3 inline-flex flex-col gap-1 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700 border border-orange-200">
+                <span>この病院の詳細情報は現在、病院側の設定により非公開になっています。</span>
+                <span>
+                  他の病院も見てみましょう：
+                  <Link
+                    href="/student/browse"
+                    className="ml-1 underline text-orange-700 hover:text-orange-800"
+                  >
+                    病院を探す
+                  </Link>
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -151,7 +162,7 @@ export default function StudentHospitalDetail() {
         </div>
       </section>
 
-      {/* 概要 */}
+      {/* 概要（公開/非公開に関係なく表示） */}
       <section className="card p-6 space-y-3">
         <h2 className="text-lg font-semibold text-primary-700">病院概要</h2>
         <div className="grid md:grid-cols-2 gap-3 text-sm">
@@ -186,23 +197,37 @@ export default function StudentHospitalDetail() {
         </div>
       </section>
 
-      {/* PR ハイライト：isPublished が true のときだけ表示 */}
+      {/* PR ハイライト：公開のときだけ表示 */}
       {isPublished && row.pr_highlights && (
         <section className="card p-6 space-y-2">
           <h2 className="text-lg font-semibold text-primary-700">PRハイライト</h2>
-          <p className="text-sm whitespace-pre-wrap leading-relaxed">{row.pr_highlights}</p>
+          <p className="text-sm whitespace-pre-wrap leading-relaxed">
+            {row.pr_highlights}
+          </p>
         </section>
       )}
 
       {/* アクション */}
-      <div className="flex gap-3 justify-end">
-        <Link
-          href={`/student/apply?hospitalId=${encodeURIComponent(row.id)}`}
-          className="bg-primary-500 text-white rounded-md px-4 py-2 text-sm hover:bg-primary-600 transition"
-        >
-          初回面談を申し込む
-        </Link>
-      </div>
+      {isPublished ? (
+        <div className="flex gap-3 justify-end">
+          <Link
+            href={`/student/apply?hospitalId=${encodeURIComponent(row.id)}`}
+            className="bg-primary-500 text-white rounded-md px-4 py-2 text-sm hover:bg-primary-600 transition"
+          >
+            初回面談を申し込む
+          </Link>
+        </div>
+      ) : (
+        <div className="flex justify-end">
+          <button
+            disabled
+            className="rounded-md px-4 py-2 text-sm border border-gray-300 text-gray-400 cursor-not-allowed"
+            title="現在この病院への申込みは停止中です"
+          >
+            現在この病院への申込みは停止中です
+          </button>
+        </div>
+      )}
     </main>
   );
 }

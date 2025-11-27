@@ -37,7 +37,7 @@ export default function ApplyClient() {
     })();
   }, [supabase, hospitalId]);
 
-  // チェックリスト（UIは維持。ただし必須では止めない）
+  // チェックリスト（UI表示のみ）
   const [profileOk, setProfileOk] = useState(false);
   const [motivationOk, setMotivationOk] = useState(false);
 
@@ -98,28 +98,35 @@ export default function ApplyClient() {
         return;
       }
 
-      // メッセージはトリムして 400 文字に制限
       const trimmedMessage = message.trim().slice(0, maxMessageLength);
 
-      // 公開ID → 病院アカウントIDの解決
-      let targetHospitalAccountId: string | null = null;
-
-      // 1) hospital_accounts.hospital_id = 公開ID で紐付けを探す
-      const { data: acc } = await supabase
+      // 公開ID → 病院アカウントIDの解決（必ず hospital_accounts.id を FK として使う）
+      const { data: acc, error: accErr } = await supabase
         .from("hospital_accounts")
         .select("id")
         .eq("hospital_id", hospital.id)
         .maybeSingle();
-      if (acc?.id) targetHospitalAccountId = acc.id;
 
-      // 2) 見つからない場合は “公開ID = アカウントID” 前提で試す（claim済み想定）
-      if (!targetHospitalAccountId) targetHospitalAccountId = hospital.id;
+      if (accErr) {
+        console.error("[apply] hospital_accounts lookup error:", accErr.message);
+        alert("この病院への申込み設定に問題があります。時間をおいて再度お試しください。");
+        return;
+      }
 
-      // 3) hospital_applications に INSERT
+      if (!acc?.id) {
+        alert(
+          "この病院は、まだオンライン申込みの受付設定が完了していません。別の病院をお選びいただくか、運営までお問い合わせください。"
+        );
+        return;
+      }
+
+      const targetHospitalAccountId = acc.id as string;
+
+      // hospital_applications に INSERT
       const res = await supabase
         .from("hospital_applications")
         .insert({
-          hospital_id: targetHospitalAccountId, // ← 病院アカウントID
+          hospital_id: targetHospitalAccountId,
           student_id: user.id,
           status: "new",
           message: trimmedMessage || null,
@@ -137,7 +144,7 @@ export default function ApplyClient() {
           res.data?.id ??
           `a-${crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
 
-        // 病院側
+        // 病院側ローカル
         const rawH = localStorage.getItem(HOSPITAL_APPS_KEY);
         const appsH = rawH ? JSON.parse(rawH) : [];
         appsH.push({
@@ -153,7 +160,7 @@ export default function ApplyClient() {
         });
         localStorage.setItem(HOSPITAL_APPS_KEY, JSON.stringify(appsH));
 
-        // 学生側
+        // 学生側ローカル
         const rawS = localStorage.getItem(STUDENT_APPS_KEY);
         const appsS = rawS ? JSON.parse(rawS) : [];
         appsS.push({
@@ -167,7 +174,6 @@ export default function ApplyClient() {
         localStorage.setItem(STUDENT_APPS_KEY, JSON.stringify(appsS));
       } catch {}
 
-      // 完了後は応募一覧へ
       location.href = "/student/applications?added=1";
     } catch (e: any) {
       console.error("[apply] send error", e?.message);

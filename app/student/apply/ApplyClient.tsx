@@ -6,7 +6,7 @@ import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 
 // 既存MVP: ローカル保存キー（併用）
 const HOSPITAL_APPS_KEY = "ishimatch:hospital:applications";
-const STUDENT_APPS_KEY  = "ishimatch:student:applications";
+const STUDENT_APPS_KEY = "ishimatch:student:applications";
 
 // 画面で使う最小型
 type HospitalRow = { id: string; name: string };
@@ -38,19 +38,22 @@ export default function ApplyClient() {
   }, [supabase, hospitalId]);
 
   // チェックリスト（UIは維持。ただし必須では止めない）
-  const [profileOk, setProfileOk]       = useState(false);
+  const [profileOk, setProfileOk] = useState(false);
   const [motivationOk, setMotivationOk] = useState(false);
-  const [resumeOk, setResumeOk]         = useState(false);
-  const [file, setFile]                 = useState<File | null>(null);
+
+  // 病院へのメッセージ
+  const [message, setMessage] = useState("");
+  const maxMessageLength = 400;
 
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState(false);
 
   // 学生情報の取得（DB → auth.metadata → localStorage）
   async function loadStudentProfile(): Promise<StudentProfile> {
     let name = "", email = "", university = "", gradYear: number | undefined = undefined;
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     if (user) {
       email = user.email ?? "";
       name =
@@ -74,10 +77,10 @@ export default function ApplyClient() {
 
     try {
       const local = JSON.parse(localStorage.getItem("ishimatch:student:profile") || "{}");
-      name       = name       || local?.name || "";
-      email      = email      || local?.email || "";
+      name = name || local?.name || "";
+      email = email || local?.email || "";
       university = university || local?.university || "";
-      gradYear   = gradYear   ?? (local?.gradYear ? Number(local.gradYear) : undefined);
+      gradYear = gradYear ?? (local?.gradYear ? Number(local.gradYear) : undefined);
     } catch {}
     return { name, email, university, gradYear };
   }
@@ -87,11 +90,16 @@ export default function ApplyClient() {
     if (!hospital || busy) return;
     setBusy(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (!user) {
         alert("ログインが必要です。");
         return;
       }
+
+      // メッセージはトリムして 400 文字に制限
+      const trimmedMessage = message.trim().slice(0, maxMessageLength);
 
       // 公開ID → 病院アカウントIDの解決
       let targetHospitalAccountId: string | null = null;
@@ -107,13 +115,14 @@ export default function ApplyClient() {
       // 2) 見つからない場合は “公開ID = アカウントID” 前提で試す（claim済み想定）
       if (!targetHospitalAccountId) targetHospitalAccountId = hospital.id;
 
-      // 3) RLS: 学生が自分の student_id で INSERT できるように
+      // 3) hospital_applications に INSERT
       const res = await supabase
         .from("hospital_applications")
         .insert({
-          hospital_id: targetHospitalAccountId,  // ← 病院アカウントIDに合わせる
-          student_id : user.id,
-          status     : "new",
+          hospital_id: targetHospitalAccountId, // ← 病院アカウントID
+          student_id: user.id,
+          status: "new",
+          message: trimmedMessage || null,
         })
         .select("id")
         .single();
@@ -124,7 +133,9 @@ export default function ApplyClient() {
       try {
         const nowIso = new Date().toISOString();
         const profile = await loadStudentProfile();
-        const applicationId = res.data?.id ?? `a-${crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
+        const applicationId =
+          res.data?.id ??
+          `a-${crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
 
         // 病院側
         const rawH = localStorage.getItem(HOSPITAL_APPS_KEY);
@@ -134,10 +145,11 @@ export default function ApplyClient() {
           studentId: user.id,
           studentName: profile.name || "（氏名未設定）",
           university: profile.university || "",
-          gradYear  : profile.gradYear ?? null,
-          appliedAt : nowIso,
-          status    : "新規",
-          email     : profile.email || "",
+          gradYear: profile.gradYear ?? null,
+          appliedAt: nowIso,
+          status: "新規",
+          email: profile.email || "",
+          message: trimmedMessage || "",
         });
         localStorage.setItem(HOSPITAL_APPS_KEY, JSON.stringify(appsH));
 
@@ -146,16 +158,16 @@ export default function ApplyClient() {
         const appsS = rawS ? JSON.parse(rawS) : [];
         appsS.push({
           id: applicationId,
-          hospitalId  : hospital.id,
+          hospitalId: hospital.id,
           hospitalName: hospital.name,
-          appliedAt   : nowIso,
-          status      : "申込済み",
-          source      : "self",
+          appliedAt: nowIso,
+          status: "申込済み",
+          source: "self",
         });
         localStorage.setItem(STUDENT_APPS_KEY, JSON.stringify(appsS));
       } catch {}
 
-      setDone(true);
+      // 完了後は応募一覧へ
       location.href = "/student/applications?added=1";
     } catch (e: any) {
       console.error("[apply] send error", e?.message);
@@ -169,7 +181,9 @@ export default function ApplyClient() {
     return (
       <main className="max-w-4xl mx-auto p-6 space-y-6">
         <h1 className="text-2xl font-bold">初回面談を申し込む</h1>
-        <p className="text-gray-600">病院が見つかりませんでした。検索ページから選び直してください。</p>
+        <p className="text-gray-600">
+          病院が見つかりませんでした。検索ページから選び直してください。
+        </p>
         <Link href="/student/browse" className="text-primary-600 underline">
           病院を探すへ戻る
         </Link>
@@ -194,20 +208,41 @@ export default function ApplyClient() {
       <section className="rounded-xl border bg-white p-4 space-y-3">
         <h2 className="font-semibold text-primary-700">申し込み前のチェックリスト</h2>
         <label className="flex gap-2 items-center text-sm">
-          <input type="checkbox" checked={profileOk} onChange={() => setProfileOk(!profileOk)} />
+          <input
+            type="checkbox"
+            checked={profileOk}
+            onChange={() => setProfileOk(!profileOk)}
+          />
           基本情報は登録されていますか？（氏名・メール・卒業年）
         </label>
         <label className="flex gap-2 items-center text-sm">
-          <input type="checkbox" checked={motivationOk} onChange={() => setMotivationOk(!motivationOk)} />
-          志望動機の内容を確認しましたか？
+          <input
+            type="checkbox"
+            checked={motivationOk}
+            onChange={() => setMotivationOk(!motivationOk)}
+          />
+          志望動機・自己紹介の内容を確認しましたか？
         </label>
-        <label className="flex gap-2 items-center text-sm">
-          <input type="checkbox" checked={resumeOk} onChange={() => setResumeOk(!resumeOk)} />
-          レジュメはPDF化できていますか？
-        </label>
-        <div className="mt-2 flex items-center gap-2">
-          <input type="file" accept="application/pdf" onChange={(e)=>setFile(e.target.files?.[0] || null)} />
-          {file && <span className="text-xs text-gray-600">{file.name}</span>}
+        <p className="text-xs text-gray-500">
+          チェックは任意ですが、事前に内容を整理してから申し込むことをおすすめします。
+        </p>
+      </section>
+
+      {/* 病院へのメッセージ */}
+      <section className="rounded-xl border bg-white p-4 space-y-3">
+        <h2 className="font-semibold text-primary-700">病院へのメッセージ（任意）</h2>
+        <p className="text-xs text-gray-500">
+          志望理由や、見学・面談で特に聞きたいことなどを自由に記入してください（400字程度）。
+        </p>
+        <textarea
+          value={message}
+          onChange={(e) => setMessage(e.target.value.slice(0, maxMessageLength))}
+          rows={6}
+          className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-primary-200"
+          placeholder="例）貴院の救急医療に関する研修内容に強く興味があります。..."
+        />
+        <div className="text-right text-xs text-gray-500">
+          {message.length}/{maxMessageLength} 文字
         </div>
       </section>
 
@@ -216,17 +251,15 @@ export default function ApplyClient() {
         <button
           onClick={handleSend}
           disabled={busy}
-          className={`px-5 py-2 rounded text-white ${busy ? "bg-gray-300" : "bg-primary-600 hover:bg-primary-700"}`}
+          className={`px-5 py-2 rounded text-white ${
+            busy
+              ? "bg-gray-300 cursor-not-allowed"
+              : "bg-primary-600 hover:bg-primary-700"
+          }`}
         >
           {busy ? "送信中..." : "申し込む"}
         </button>
       </div>
-
-      {done && (
-        <div className="rounded-md bg-green-50 border border-green-200 p-3 text-green-800">
-          送信しました。病院からの連絡をお待ちください。
-        </div>
-      )}
     </main>
   );
 }

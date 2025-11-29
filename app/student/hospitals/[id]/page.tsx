@@ -8,6 +8,41 @@ import { Heart } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { useDbFavorites } from "@/app/hooks/useDbFavorites";
 
+/* ---------- 年収表示の共通フォーマット ---------- */
+const formatSalary = (max: number | null, min?: number | null) => {
+  // min / max ともに数値じゃない場合
+  if (max == null && (min == null || Number.isNaN(min))) {
+    return "—";
+  }
+
+  // min と max 両方ある場合
+  if (min != null && !Number.isNaN(min) && max != null && !Number.isNaN(max)) {
+    // 幅があるときだけレンジ表示
+    if (min !== max) {
+      const minStr = min.toLocaleString("ja-JP");
+      const maxStr = max.toLocaleString("ja-JP");
+      return `${minStr}〜${maxStr}万円 / 年`;
+    }
+    // 同じなら単一表示
+    const v = max.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  // max だけ分かる場合
+  if (max != null && !Number.isNaN(max)) {
+    const v = max.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  // min だけ分かる場合（保険）
+  if (min != null && !Number.isNaN(min)) {
+    const v = min.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  return "—";
+};
+
 /* ---------- 型（public.hospitals_resolved） ---------- */
 type HospitalRow = {
   id: string;
@@ -190,9 +225,7 @@ export default function StudentHospitalDetail() {
           </p>
           <p>
             <span className="text-text-muted">年収：</span>
-            {row.salary_1st_year_min
-              ? `${row.salary_1st_year_min}万〜${row.salary_1st_year_max ?? "—"}万`
-              : "—"}
+            {formatSalary(row.salary_1st_year_max, row.salary_1st_year_min)}
           </p>
         </div>
       </section>
@@ -277,7 +310,6 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
       }
       if (typeof fav?.refresh === "function") await fav.refresh();
     } catch (e) {
-      // 失敗時は元に戻す
       setActive((prev) => !prev);
       console.error("[favorite] toggle error", e);
       alert("検討リストの更新に失敗しました。時間をおいて再度お試しください。");

@@ -29,11 +29,37 @@ type HospitalRow = {
 type HeroMap = Record<string, string | null>;
 
 const formatSalary = (max: number | null, min?: number | null) => {
-  if (!max) return "—";
-  const maxStr = max.toLocaleString("ja-JP");
-  if (!min) return `${maxStr}万円 / 年`;
-  const minStr = min.toLocaleString("ja-JP");
-  return `${minStr}〜${maxStr}万円 / 年`;
+  // min / max ともに数値じゃない場合
+  if (max == null && (min == null || Number.isNaN(min))) {
+    return "—";
+  }
+
+  // min と max 両方ある場合
+  if (min != null && !Number.isNaN(min) && max != null && !Number.isNaN(max)) {
+    // 幅があるときだけレンジ表示
+    if (min !== max) {
+      const minStr = min.toLocaleString("ja-JP");
+      const maxStr = max.toLocaleString("ja-JP");
+      return `${minStr}〜${maxStr}万円 / 年`;
+    }
+    // 同じなら単一表示
+    const v = max.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  // max だけ分かる場合
+  if (max != null && !Number.isNaN(max)) {
+    const v = max.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  // min だけ分かる場合（保険）
+  if (min != null && !Number.isNaN(min)) {
+    const v = min.toLocaleString("ja-JP");
+    return `${v}万円 / 年`;
+  }
+
+  return "—";
 };
 
 const truncate = (text: string, max: number) => {

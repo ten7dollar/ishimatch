@@ -411,98 +411,112 @@ export default function StudentDashboard() {
       {/* あなたへのおすすめ（DBからランダム3件） */}
       <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {recommended.length === 0 ? (
-            <p className="text-sm text-text-muted">
-              おすすめを表示できる病院データがまだありません。
-            </p>
-          ) : (
-            recommended.map((h) => {
-              const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
-              const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
-              const pr = truncate(
-                h.pr_highlights ?? "あなたの条件に近い病院です。",
-                60
-              );
 
-              return (
-                <div
-                  key={h.id}
-                  className="rounded-2xl border border-blue-100 bg-white hover:bg-white shadow-[0_10px_25px_rgba(15,23,42,0.07)] hover:shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition p-4 flex flex-col justify-between"
-                >
-                  <div className="w-full h-24 rounded-xl overflow-hidden mb-3">
-                    {recommendedHeroMap[h.id] ? (
-                      <img
-                        src={hero}
-                        alt={h.name}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <Image
-                        src={hero}
-                        alt={h.name}
-                        width={400}
-                        height={96}
-                        className="w-full h-full object-cover"
-                      />
-                    )}
-                  </div>
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-full">
+            {recommended.length === 0 ? (
+              <p className="text-sm text-text-muted px-1">
+                おすすめを表示できる病院データがまだありません。
+              </p>
+            ) : (
+              recommended.map((h) => {
+                const hero =
+                  recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
+                const salaryText = formatSalary(
+                  h.salary_1st_year_max,
+                  h.salary_1st_year_min
+                );
+                const pr = truncate(
+                  h.pr_highlights ?? "あなたの条件に近い病院です。",
+                  60
+                );
 
-                  {/* 上部：タイトルとタグ */}
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h3 className="text-base font-semibold text-primary-800 line-clamp-2">
-                        {h.name}
-                      </h3>
-                      <p className="text-xs text-text-muted">
-                        {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
-                      </p>
-                    </div>
-                    <span className="px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
-                      おすすめ
-                    </span>
-                  </div>
-
-                  {/* 中央：テキストとグラフを横並び */}
-                  <div className="flex items-center justify-between mt-3">
-                    <div className="flex-1 space-y-1 text-xs text-text leading-relaxed">
-                      <p>
-                        <span className="text-text-muted">年収：</span>
-                        {salaryText}
-                      </p>
-                      <p className="text-text-muted">{pr}</p>
-                    </div>
-
-                    <div className="w-24 h-24 md:w-28 md:h-28">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                          <PolarGrid />
-                          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 9 }} />
-                          <Radar
-                            name="スコア"
-                            dataKey="A"
-                            stroke="#0077B6"
-                            fill="#0077B6"
-                            fillOpacity={0.3}
+                return (
+                  <Link
+                    key={h.id}
+                    href={`/student/hospitals/${h.id}`}
+                    className="min-w-[260px] max-w-[320px] flex-shrink-0"
+                  >
+                    {/* ランキングと似たノリの横スクロール用カード */}
+                    <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
+                      {/* 画像 */}
+                      <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
+                        {recommendedHeroMap[h.id] ? (
+                          <img
+                            src={hero}
+                            alt={h.name}
+                            className="w-full h-full object-cover"
                           />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </div>
+                        ) : (
+                          <Image
+                            src={hero}
+                            alt={h.name}
+                            width={400}
+                            height={96}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
 
-                  {/* 下部：詳細ボタンのみ */}
-                  <div className="flex justify-end mt-3">
-                    <Link
-                      href={`/student/hospitals/${h.id}`}
-                      className="border border-primary-500 text-primary-600 rounded-md px-3 py-1 text-sm hover:bg-primary-50 transition"
-                    >
-                      詳細を見る
-                    </Link>
-                  </div>
-                </div>
-              );
-            })
-          )}
+                      {/* コンテンツ */}
+                      <div className="p-4 flex flex-col gap-2 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm font-semibold text-primary-800 line-clamp-2">
+                              {h.name}
+                            </h3>
+                            <p className="text-xs text-text-muted">
+                              {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
+                            </p>
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
+                            おすすめ
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
+                          <span className="font-semibold text-primary-800">
+                            {salaryText}
+                          </span>
+                          <span className="ml-1">{pr}</span>
+                        </p>
+
+                        <div className="mt-2 flex justify-between items-center">
+                          <div className="w-20 h-20 md:w-24 md:h-24">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <RadarChart
+                                cx="50%"
+                                cy="50%"
+                                outerRadius="70%"
+                                data={radarData}
+                              >
+                                <PolarGrid />
+                                <PolarAngleAxis
+                                  dataKey="subject"
+                                  tick={{ fontSize: 9 }}
+                                />
+                                <Radar
+                                  name="スコア"
+                                  dataKey="A"
+                                  stroke="#0077B6"
+                                  fill="#0077B6"
+                                  fillOpacity={0.3}
+                                />
+                              </RadarChart>
+                            </ResponsiveContainer>
+                          </div>
+
+                          <span className="text-xs text-primary-600 underline">
+                            詳細を見る
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })
+            )}
+          </div>
         </div>
       </section>
 

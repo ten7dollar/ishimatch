@@ -16,6 +16,12 @@ type Facility = (typeof FACILITY)[number];
 const NIGHTS = ["〜2回", "3〜4回", "5回〜", "問わない"] as const;
 type Nights = (typeof NIGHTS)[number];
 
+const BEDS = ["〜199床", "200〜399床", "400〜599床", "600床以上", "問わない"] as const;
+type BedRange = (typeof BEDS)[number];
+
+const HOUSING = ["あり", "問わない"] as const;
+type Housing = (typeof HOUSING)[number];
+
 // 47都道府県（地方グルーピング）
 const PREF_GROUPS: { name: string; prefs: string[] }[] = [
   { name: "北海道・東北", prefs: ["北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県"] },
@@ -29,7 +35,7 @@ const PREF_GROUPS: { name: string; prefs: string[] }[] = [
 ];
 
 /* =======================
-   型（public.hospitals）
+   型（public.hospitals_resolved）
 ======================= */
 type HospitalRow = {
   id: string;
@@ -44,6 +50,7 @@ type HospitalRow = {
   salary_1st_year_max: number | null;
   duty_frequency: "~2回" | "3~4回" | "5回以上" | "特になし" | null;
   website_url: string | null;
+  other_benefits: string | null;
 };
 
 /* =======================
@@ -59,6 +66,11 @@ export default function StudentHospitalSearchPage() {
   const [facility, setFacility] = useState<Facility>("どちらでも");
   const [salary, setSalary] = useState<Salary>("問わない");
   const [nights, setNights] = useState<Nights>("問わない");
+
+  // 詳細条件
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [bedRange, setBedRange] = useState<BedRange>("問わない");
+  const [housing, setHousing] = useState<Housing>("問わない");
 
   // 47都道府県（複数）
   const [prefSet, setPrefSet] = useState<Set<string>>(new Set());
@@ -134,6 +146,38 @@ export default function StudentHospitalSearchPage() {
         q = q.eq("duty_frequency", map[nights]!);
       }
 
+      // 病床数レンジ
+      switch (bedRange) {
+        case "〜199床":
+          q = q.lte("bed_count", 199);
+          break;
+        case "200〜399床":
+          q = q.gte("bed_count", 200).lte("bed_count", 399);
+          break;
+        case "400〜599床":
+          q = q.gte("bed_count", 400).lte("bed_count", 599);
+          break;
+        case "600床以上":
+          q = q.gte("bed_count", 600);
+          break;
+        case "問わない":
+        default:
+          break;
+      }
+
+      // 家賃手当の有無（other_benefits に特定の文言が含まれるか）
+      if (housing === "あり") {
+        // 住宅手当 / 住居手当 / 家賃補助 / 住宅補助 のいずれかを含む
+        q = q.or(
+          [
+            "other_benefits.ilike.%住宅手当%",
+            "other_benefits.ilike.%住居手当%",
+            "other_benefits.ilike.%家賃補助%",
+            "other_benefits.ilike.%住宅補助%",
+          ].join(",")
+        );
+      }
+
       const { data, error, count: c } = await q;
       if (error) throw error;
 
@@ -147,13 +191,18 @@ export default function StudentHospitalSearchPage() {
     }
   };
 
-  useEffect(() => { load(); }, [qName, facility, salary, nights, prefSet]); // 条件が変わる度に再検索
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qName, facility, salary, nights, bedRange, housing, prefSet]); // 条件が変わる度に再検索
 
   const clearAll = () => {
     setNameQuery("");
     setFacility("どちらでも");
     setSalary("問わない");
     setNights("問わない");
+    setBedRange("問わない");
+    setHousing("問わない");
     setPrefSet(new Set());
     setTimeout(load, 0);
   };
@@ -164,7 +213,7 @@ export default function StudentHospitalSearchPage() {
       <div className="space-y-1">
         <h1 className="text-xl md:text-2xl font-bold">病院を探す</h1>
         <p className="text-sm text-gray-600">
-          病院名の部分一致 + 都道府県 / 救急区分 / 年収帯 / 当直回数（AND）
+          病院名の部分一致 + 都道府県 / 救急区分 / 年収帯 / 当直回数（AND）。詳細条件で病床数・家賃手当も絞り込めます。
         </p>
       </div>
 
@@ -227,16 +276,63 @@ export default function StudentHospitalSearchPage() {
             </div>
           </div>
 
-          {/* ラジオ群 */}
-          <SelectGroup title="救急受け入れ" value={facility} options={FACILITY} onChange={setFacility} />
-          <SelectGroup title="希望年収（初年度）" value={salary} options={SALARY} onChange={setSalary} />
-          <SelectGroup title="当直回数" value={nights} options={NIGHTS} onChange={setNights} />
+          {/* 基本条件（ラジオ群） */}
+          <SelectGroup
+            title="救急受け入れ"
+            value={facility}
+            options={FACILITY}
+            onChange={setFacility}
+          />
+          <SelectGroup
+            title="希望年収（初年度）"
+            value={salary}
+            options={SALARY}
+            onChange={setSalary}
+          />
+          <SelectGroup
+            title="当直回数"
+            value={nights}
+            options={NIGHTS}
+            onChange={setNights}
+          />
+
+          {/* 詳細条件トグル */}
+          <div className="pt-2 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced((v) => !v)}
+              className="text-xs text-primary-700 underline"
+            >
+              {showAdvanced ? "詳細条件を閉じる" : "詳細条件で検索する"}
+            </button>
+
+            {showAdvanced && (
+              <div className="mt-3 space-y-3">
+                <SelectGroup
+                  title="病床数"
+                  value={bedRange}
+                  options={BEDS}
+                  onChange={setBedRange}
+                />
+                <SelectGroup
+                  title="家賃・住宅手当"
+                  value={housing}
+                  options={HOUSING}
+                  onChange={setHousing}
+                />
+              </div>
+            )}
+          </div>
 
           <div className="pt-2 flex flex-col gap-2">
             <button type="button" onClick={load} className="btn-primary text-sm">
               検索
             </button>
-            <button type="button" onClick={clearAll} className="border rounded py-2 text-sm hover:bg-gray-50">
+            <button
+              type="button"
+              onClick={clearAll}
+              className="border rounded py-2 text-sm hover:bg-gray-50"
+            >
               条件をクリア
             </button>
           </div>
@@ -251,13 +347,22 @@ export default function StudentHospitalSearchPage() {
           </div>
 
           {rows.map((h) => (
-            <div key={h.id} className="rounded-xl border bg-white p-4 hover:shadow-sm transition">
+            <div
+              key={h.id}
+              className="rounded-xl border bg-white p-4 hover:shadow-sm transition"
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-base md:text-lg font-semibold text-primary-700">{h.name}</h3>
+                  <h3 className="text-base md:text-lg font-semibold text-primary-700">
+                    {h.name}
+                  </h3>
                   <div className="mt-1 flex flex-wrap gap-2 text-[11px] md:text-xs">
-                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.prefecture ?? "—"}</span>
-                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">{h.facility_type ?? "—"}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">
+                      {h.prefecture ?? "—"}
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-700">
+                      {h.facility_type ?? "—"}
+                    </span>
                   </div>
                 </div>
 
@@ -278,13 +383,25 @@ export default function StudentHospitalSearchPage() {
                     ? `${h.salary_1st_year_min}万〜${h.salary_1st_year_max ?? "—"}万`
                     : "—"}
                 </div>
-                <div><span className="text-gray-500">研修医数：</span>{h.residents_first_year ?? "—"}</div>
-                <div><span className="text-gray-500">病床数：</span>{h.bed_count ?? "—"}</div>
-                <div><span className="text-gray-500">当直：</span>{h.duty_frequency ?? "—"}</div>
+                <div>
+                  <span className="text-gray-500">研修医数：</span>
+                  {h.residents_first_year ?? "—"}
+                </div>
+                <div>
+                  <span className="text-gray-500">病床数：</span>
+                  {h.bed_count ?? "—"}
+                </div>
+                <div>
+                  <span className="text-gray-500">当直：</span>
+                  {h.duty_frequency ?? "—"}
+                </div>
               </div>
 
               <div className="mt-3 flex justify-end gap-2">
-                <Link href={`/student/hospitals/${encodeURIComponent(h.id)}`} className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50">
+                <Link
+                  href={`/student/hospitals/${encodeURIComponent(h.id)}`}
+                  className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+                >
                   詳細を見る
                 </Link>
               </div>
@@ -306,8 +423,16 @@ export default function StudentHospitalSearchPage() {
    小さな部品 / util
 ======================= */
 function SelectGroup<T extends string>({
-  title, options, value, onChange,
-}: { title: string; options: readonly T[]; value: T; onChange: (v: T) => void }) {
+  title,
+  options,
+  value,
+  onChange,
+}: {
+  title: string;
+  options: readonly T[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
   return (
     <div>
       <div className="text-sm font-semibold text-primary-700 mb-2">{title}</div>
@@ -340,7 +465,9 @@ function useDebouncedValue<T>(value: T, ms: number) {
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => setV(value), ms);
-    return () => { if (timer.current) clearTimeout(timer.current); };
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, [value, ms]);
   return v;
 }

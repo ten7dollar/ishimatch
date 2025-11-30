@@ -207,7 +207,7 @@ export default function StudentDashboard() {
     })();
   }, [ranking]);
 
-  /* ========== あなたへのおすすめ（ランダム3件） ========== */
+  /* ========== あなたへのおすすめ（HEROあり & 公開中からランダム3件） ========== */
 
   const [recommended, setRecommended] = useState<HospitalRow[]>([]);
   const [recommendedHeroMap, setRecommendedHeroMap] = useState<HeroMap>({});
@@ -215,25 +215,49 @@ export default function StudentDashboard() {
   useEffect(() => {
     (async () => {
       try {
-        const { data, error } = await supabase
-          .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
-          .limit(30);
+        // 1) HERO画像が設定されていて、かつ PR 公開中の病院アカウントを取得
+        const { data: accRows, error: accErr } = await supabase
+          .from("hospital_accounts")
+          .select("hospital_id")
+          .not("hero_image_path", "is", null)
+          .eq("is_published", true);
 
-        if (error) {
-          console.error("[dashboard] recommended fetch error", error);
+        if (accErr) {
+          console.error("[dashboard] recommended accounts fetch error", accErr);
           setRecommended([]);
           return;
         }
 
-        const list = (data ?? []) as HospitalRow[];
+        const ids = (accRows ?? [])
+          .map((r: any) => r.hospital_id as string | null)
+          .filter((id): id is string => !!id);
+
+        if (!ids.length) {
+          setRecommended([]);
+          return;
+        }
+
+        // 2) hospitals_resolved から候補病院の情報取得
+        const { data: hospRows, error: hospErr } = await supabase
+          .from("hospitals_resolved")
+          .select(
+            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
+          )
+          .in("id", ids);
+
+        if (hospErr) {
+          console.error("[dashboard] recommended hospitals fetch error", hospErr);
+          setRecommended([]);
+          return;
+        }
+
+        const list = (hospRows ?? []) as HospitalRow[];
         if (!list.length) {
           setRecommended([]);
           return;
         }
 
+        // 3) シャッフルして上位3件をおすすめに
         const shuffled = [...list].sort(() => Math.random() - 0.5);
         setRecommended(shuffled.slice(0, 3));
       } catch (e) {
@@ -335,13 +359,15 @@ export default function StudentDashboard() {
 
             {ranking.map((h, idx) => {
               const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
-              const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+              const salaryText = formatSalary(
+                h.salary_1st_year_max,
+                h.salary_1st_year_min
+              );
               const pr = truncate(
                 h.pr_highlights ?? "PR情報は準備中です。",
                 50
               );
 
-              // ランクバッジの色（1位:ゴールド、2位:シルバー、3位:ブロンズ）
               const badgeGradient =
                 idx === 0
                   ? "from-amber-400 via-yellow-300 to-amber-500"
@@ -357,7 +383,6 @@ export default function StudentDashboard() {
                   href={`/student/hospitals/${h.id}`}
                   className="min-w-[260px] max-w-[320px] flex-shrink-0"
                 >
-                  {/* ★ 影・枠なしのシンプルな白カード */}
                   <div className="rounded-2xl bg-white flex flex-col h-full">
                     {/* ランクバッジ */}
                     <div className="px-4 pt-3 flex justify-between items-center">
@@ -408,7 +433,7 @@ export default function StudentDashboard() {
         </div>
       </section>
 
-      {/* あなたへのおすすめ（DBからランダム3件） */}
+      {/* あなたへのおすすめ（HEROあり & 公開中の中からランダム3件） */}
       <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
@@ -437,7 +462,6 @@ export default function StudentDashboard() {
                     href={`/student/hospitals/${h.id}`}
                     className="min-w-[260px] max-w-[320px] flex-shrink-0"
                   >
-                    {/* ランキングと似たノリの横スクロール用カード */}
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
                       {/* 画像 */}
                       <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
@@ -481,7 +505,8 @@ export default function StudentDashboard() {
                           <span className="ml-1">{pr}</span>
                         </p>
 
-                        <div className="mt-2 flex justify-between items-center">
+                        {/* グラフ：カード下部中央に寄せる */}
+                        <div className="mt-3 flex justify-center">
                           <div className="w-20 h-20 md:w-24 md:h-24">
                             <ResponsiveContainer width="100%" height="100%">
                               <RadarChart
@@ -505,10 +530,6 @@ export default function StudentDashboard() {
                               </RadarChart>
                             </ResponsiveContainer>
                           </div>
-
-                          <span className="text-xs text-primary-600 underline">
-                            詳細を見る
-                          </span>
                         </div>
                       </div>
                     </div>
@@ -532,10 +553,14 @@ export default function StudentDashboard() {
             </div>
             <div className="flex-1">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg md:text-xl font-bold text-primary-800">病院を探す</h2>
+                <h2 className="text-lg md:text-xl font-bold text-primary-800">
+                  病院を探す
+                </h2>
                 <ArrowRight className="w-5 h-5 text-primary-600 opacity-0 group-hover:opacity-100 transition" />
               </div>
-              <p className="text-sm text-text-muted mt-1">希望条件を指定して絞り込み</p>
+              <p className="text-sm text-text-muted mt-1">
+                希望条件を指定して絞り込み
+              </p>
               <p className="text-sm text-text mt-3">
                 勤務地、年収、当直回数など、詳細な条件を指定して病院を検索できます。
               </p>

@@ -13,14 +13,15 @@ import LogoutButton from "../components/LogoutButton";
 import UserProfileProvider, { useUserProfile } from "../_providers/user-profile";
 
 const navItems = [
-  { href: "/student/dashboard", label: "ホーム" },
-  { href: "/student/browse",   label: "病院を探す" },
-  { href: "/student/saved",    label: "検討リスト" },
-  { href: "/student/resume",   label: "レジュメを作る" },
-  { href: "/student/applications", label: "応募履歴" },
-  { href: "/student/scouts",   label: "スカウト" },
-  { href: "/student/contact",  label: "お問い合わせ" },
-  { href: "/student/account",  label: "アカウント" },
+  { href: "/student/dashboard",   label: "ホーム" },
+  { href: "/student/honne",       label: "本音検索" },      // ★ 追加
+  { href: "/student/browse",      label: "病院を探す" },
+  { href: "/student/saved",       label: "検討リスト" },
+  { href: "/student/resume",      label: "レジュメを作る" },
+  { href: "/student/applications",label: "応募履歴" },
+  { href: "/student/scouts",      label: "スカウト" },
+  { href: "/student/contact",     label: "お問い合わせ" },
+  { href: "/student/account",     label: "アカウント" },
 ];
 
 function BellWithBadge() {
@@ -65,7 +66,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
             <aside className="hidden md:flex flex-col w-64 border-r bg-white">
               <div className="px-6 py-4 border-b">
                 <Link href="/student/dashboard" className="inline-flex items-center">
-                  {/* ★ ロゴサイズは h-12 を中心に、h-14 / h-16 にするとさらに大きく表示 */}
+                  {/* ロゴ */}
                   <Image
                     src="/brand/regimatch-logo.svg"
                     alt="レジマッチ"
@@ -115,7 +116,9 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 </div>
               </header>
 
-              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">{children}</main>
+              <main className="flex-1 px-4 md:px-8 py-6 md:pb-0 pb-24">
+                {children}
+              </main>
               <StudentMobileTabBar />
             </div>
           </div>

@@ -140,7 +140,7 @@ export default function HonneSearchPage() {
           .select(
             "id,name,prefecture,region,city,facility_type,bed_count,residents_first_year,salary_1st_year_min,salary_1st_year_max,base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,pr_highlights"
           )
-          .limit(200);
+          .limit(1000);
 
         if (error) throw error;
         setHospitals((data ?? []) as HonneHospital[]);

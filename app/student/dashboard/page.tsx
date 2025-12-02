@@ -336,8 +336,66 @@ export default function StudentDashboard() {
         </div>
       </header>
 
+      {/* 検索導線：本音検索 / 通常検索 */}
+      <section className="grid md:grid-cols-2 gap-4 pt-2">
+        {/* 本音検索 */}
+        <Link
+          href="/student/honne"
+          className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-sky-50 to-slate-50 hover:bg-primary-50/80 shadow-sm hover:shadow-md transition group"
+        >
+          <div className="flex items-start gap-3 px-5 py-4">
+            <div className="p-2 rounded-full bg-white shadow-sm">
+              <Filter className="w-5 h-5 text-primary-600" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg md:text-xl font-bold text-primary-800">
+                  本音検索
+                </h2>
+                <span className="px-2 py-0.5 text-[10px] rounded-full bg-orange-100 text-orange-700 font-semibold">
+                  新機能
+                </span>
+              </div>
+              <p className="text-xs md:text-sm text-text-muted">
+                年収と働き方のバランスから、リアルな“コスパ”で研修先を比較できます。
+              </p>
+              <p className="text-[11px] md:text-xs text-primary-700 flex items-center gap-1 group-hover:underline">
+                <ArrowRight className="w-4 h-4" />
+                本音で病院を探してみる
+              </p>
+            </div>
+          </div>
+        </Link>
+
+        {/* 通常検索 */}
+        <Link
+          href="/student/browse"
+          className="rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm hover:shadow-md transition group"
+        >
+          <div className="flex items-start gap-3 px-5 py-4">
+            <div className="p-2 rounded-full bg-slate-50">
+              <Filter className="w-5 h-5 text-slate-600" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg md:text-xl font-bold text-slate-900">
+                  通常検索
+                </h2>
+              </div>
+              <p className="text-xs md:text-sm text-text-muted">
+                都道府県・救急区分・年収帯・当直回数など、条件を指定して病院を検索します。
+              </p>
+              <p className="text-[11px] md:text-xs text-primary-700 flex items-center gap-1 group-hover:underline">
+                <ArrowRight className="w-4 h-4" />
+                条件を指定して探す
+              </p>
+            </div>
+          </div>
+        </Link>
+      </section>
+
       {/* 初年度年収ランキング */}
-      <section className="space-y-4 pt-2 pb-6 border-b border-slate-100">
+      <section className="space-y-4 pt-4 pb-6 border-b border-slate-100">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <TrendingUp className="w-6 h-6 text-primary-600" />
@@ -462,7 +520,7 @@ export default function StudentDashboard() {
                     href={`/student/hospitals/${h.id}`}
                     className="min-w-[260px] max-w-[320px] flex-shrink-0"
                   >
-                    <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
+                    <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg白 hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
                       {/* 画像 */}
                       <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
                         {recommendedHeroMap[h.id] ? (
@@ -539,34 +597,6 @@ export default function StudentDashboard() {
             )}
           </div>
         </div>
-      </section>
-
-      {/* 病院を探す（検索導線） */}
-      <section className="grid md:grid-cols-1 gap-6 pt-4">
-        <Link
-          href="/student/browse"
-          className="rounded-2xl border border-primary-100 bg-primary-50/60 hover:bg-primary-50 shadow-sm hover:shadow-md transition group"
-        >
-          <div className="flex items-start gap-3 px-5 py-4">
-            <div className="p-2 rounded-full bg-white/70">
-              <Filter className="w-5 h-5 text-primary-600" />
-            </div>
-            <div className="flex-1">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg md:text-xl font-bold text-primary-800">
-                  病院を探す
-                </h2>
-                <ArrowRight className="w-5 h-5 text-primary-600 opacity-0 group-hover:opacity-100 transition" />
-              </div>
-              <p className="text-sm text-text-muted mt-1">
-                希望条件を指定して絞り込み
-              </p>
-              <p className="text-sm text-text mt-3">
-                勤務地、年収、当直回数など、詳細な条件を指定して病院を検索できます。
-              </p>
-            </div>
-          </div>
-        </Link>
       </section>
     </main>
   );

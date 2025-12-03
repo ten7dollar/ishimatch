@@ -58,7 +58,7 @@ const computeTotalIncome = (h: HonneHospital): number | null => {
   const total = base + allowances;
   if (total > 0) return total;
 
-  // fallback: 旧カラム
+  // fallback: salary_1st_year_max/min
   if (h.salary_1st_year_max != null) return h.salary_1st_year_max;
   if (h.salary_1st_year_min != null) return h.salary_1st_year_min;
   return null;
@@ -139,8 +139,7 @@ export default function HonneSearchPage() {
           .from("hospitals_honne")
           .select(
             "id,name,prefecture,region,city,facility_type,bed_count,residents_first_year,salary_1st_year_min,salary_1st_year_max,base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,pr_highlights"
-          )
-          .limit(1000);
+          );
 
         if (error) throw error;
         setHospitals((data ?? []) as HonneHospital[]);
@@ -158,6 +157,7 @@ export default function HonneSearchPage() {
     const total = computeTotalIncome(h);
     if (total == null || total < minIncome) return false;
 
+    // 働き方スタイル
     const ot = h.avg_overtime_hours_per_month ?? null;
     const duty = h.avg_duty_shifts_per_month ?? null;
 
@@ -185,6 +185,7 @@ export default function HonneSearchPage() {
 
     if (!styleOK) return false;
 
+    // 研修医生数レンジ
     const trainees = h.residents_first_year ?? null;
     if (traineeRange === "〜5人") {
       if (trainees == null || trainees > 5) return false;
@@ -199,8 +200,17 @@ export default function HonneSearchPage() {
 
   const resultCount = filtered.length;
 
+  // 結果サマリ（平均値など）※シンプルに
+  const avgIncome =
+    resultCount > 0
+      ? Math.round(
+          filtered.reduce((sum, h) => sum + (computeTotalIncome(h) ?? 0), 0) /
+            resultCount
+        )
+      : null;
+
   return (
-    <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-6">
+    <main className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:space-y-10 space-y-6">
       {/* ヘッダー */}
       <header className="space-y-2">
         <h1 className="text-xl md:text-2xl font-bold">「本音」で探す研修先</h1>
@@ -210,10 +220,10 @@ export default function HonneSearchPage() {
       </header>
 
       <div className="grid md:grid-cols-[320px_1fr] gap-4 md:gap-8">
-        {/* 左カラム：条件設定 */}
-        <aside className="rounded-2xl bg-white border border-slate-100 p-4 space-y-6 shadow-sm">
-          {/* 年収スライダー */}
-          <section className="space-y-2">
+        {/* 左カラム：条件カード */}
+        <aside className="space-y-4">
+          {/* 年収スライダーのカード */}
+          <section className="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-semibold text-slate-800">
                 最低希望年収
@@ -235,13 +245,19 @@ export default function HonneSearchPage() {
               <span>300万円</span>
               <span>1,200万円+</span>
             </div>
+            <p className="text-[11px] text-slate-500">
+              初年度年収がこの金額以上の病院だけを表示します。
+            </p>
           </section>
 
-          {/* 働き方スタイル */}
-          <section className="space-y-2">
+          {/* 働き方スタイルカード */}
+          <section className="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm space-y-2">
             <p className="text-xs font-semibold text-slate-700 flex items-center gap-1">
               <Clock className="w-3 h-3" />
               働き方スタイル
+            </p>
+            <p className="text-[11px] text-slate-500 mb-1">
+              月残業・当直回数の目安から、ざっくりスタイルを選べます。
             </p>
             <div className="flex flex-col gap-1 text-xs">
               {(["指定なし", "ガッツリでもOK", "ほどほど", "QOL重視"] as WorkingStyle[]).map(
@@ -265,11 +281,14 @@ export default function HonneSearchPage() {
             </div>
           </section>
 
-          {/* 研修医生数 */}
-          <section className="space-y-2">
+          {/* 研修医人数カード */}
+          <section className="rounded-2xl bg-white border border-slate-100 p-4 shadow-sm space-y-2">
             <p className="text-xs font-semibold text-slate-700 flex items-center gap-1">
               <Briefcase className="w-3 h-3" />
               研修医（1年目）の人数
+            </p>
+            <p className="text-[11px] text-slate-500 mb-1">
+              同期の人数感から、少人数〜大人数の雰囲気を選べます。
             </p>
             <div className="flex flex-col gap-1 text-xs">
               {(["指定なし", "〜5人", "6〜10人", "11人〜"] as TraineeRange[]).map((r) => (
@@ -292,7 +311,7 @@ export default function HonneSearchPage() {
           </section>
 
           {/* 条件リセット */}
-          <section className="pt-2 border-t border-slate-100">
+          <section className="rounded-2xl bg-white border border-slate-100 p-3 shadow-sm">
             <button
               type="button"
               onClick={() => {
@@ -309,12 +328,23 @@ export default function HonneSearchPage() {
 
         {/* 右カラム：結果一覧 */}
         <section className="space-y-4">
+          {/* サマリ行 */}
           <div className="flex items-center justify-between">
-            <p className="text-sm text-gray-600">
-              {loading
-                ? "検索中…"
-                : `該当する病院：${resultCount}件（年収・働き方のバランスで絞り込み済み）`}
-            </p>
+            <div>
+              <p className="text-sm text-gray-600">
+                {loading
+                  ? "検索中…"
+                  : `該当する病院：${resultCount}件（年収・働き方のバランスで絞り込み済み）`}
+              </p>
+              {avgIncome != null && (
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  表示中の病院の平均初年度年収：{" "}
+                  <span className="font-semibold text-primary-700">
+                    {avgIncome.toLocaleString("ja-JP")}万円
+                  </span>
+                </p>
+              )}
+            </div>
             <Link
               href="/student/browse"
               className="flex items-center gap-1 text-xs text-primary-700 hover:underline"
@@ -324,21 +354,20 @@ export default function HonneSearchPage() {
             </Link>
           </div>
 
+          {/* 結果カード */}
           {filtered.map((h) => {
             const totalIncome = computeTotalIncome(h);
-
             const base = h.base_salary_annual ?? null;
             const bonus = h.other_allowance_annual ?? null;
-            const duty = h.duty_allowance_annual ?? null;
-            const overtime = h.overtime_allowance_annual ?? null;
-            const allowanceSum = (duty ?? 0) + (overtime ?? 0);
+            const dutyAll = h.duty_allowance_annual ?? null;
+            const overAll = h.overtime_allowance_annual ?? null;
+            const allowanceSum = (dutyAll ?? 0) + (overAll ?? 0) + (bonus ?? 0);
 
             const hourly = computeHourlyWage(h);
             const ot = h.avg_overtime_hours_per_month ?? null;
-            const dutyCount = h.avg_duty_shifts_per_month ?? null;
+            const duty = h.avg_duty_shifts_per_month ?? null;
             const workHours = h.avg_total_work_hours_per_month ?? null;
 
-            // バーの幅（総長さ）: totalIncome / MAX_INCOME_MAN
             const totalRatio =
               totalIncome && totalIncome > 0
                 ? Math.min(totalIncome / MAX_INCOME_MAN, 1)
@@ -346,8 +375,7 @@ export default function HonneSearchPage() {
 
             const basePart = base ?? 0;
             const bonusPart = bonus ?? 0;
-            const dutyOvertimePart = allowanceSum;
-
+            const dutyOvertimePart = (dutyAll ?? 0) + (overAll ?? 0);
             const partsTotal = basePart + bonusPart + dutyOvertimePart || 1;
             const baseRatioInner = basePart / partsTotal;
             const bonusRatioInner = bonusPart / partsTotal;
@@ -372,8 +400,9 @@ export default function HonneSearchPage() {
                       </h2>
                     </div>
                     <p className="text-xs text-slate-600">
-                      {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}・
-                      {h.city ?? ""}
+                      {h.prefecture ?? "—"}
+                      {h.city ? `・${h.city}` : ""}
+                      {h.region ? `（${h.region}）` : ""}
                       {h.facility_type ? `／${h.facility_type}` : ""}
                     </p>
 
@@ -397,7 +426,7 @@ export default function HonneSearchPage() {
                       ))}
                     </div>
 
-                    {/* PRハイライト（軽く） */}
+                    {/* PRハイライト（あれば） */}
                     {h.pr_highlights && (
                       <p className="mt-1 text-xs text-slate-700 line-clamp-2">
                         {h.pr_highlights}
@@ -412,12 +441,11 @@ export default function HonneSearchPage() {
                       <p className="text-lg md:text-xl font-bold text-primary-700">
                         {formatTotalIncomePretty(h)}
                       </p>
-                      <p className="text-[10px] text-slate-500">
-                        ベース：{formatMoneyMan(h.base_salary_annual)} / 賞与・その他：
-                        {formatMoneyMan(bonus)} / 手当（当直・残業）：
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        ベース：{formatMoneyMan(base)} ／ 手当合計：
                         {formatMoneyMan(allowanceSum || null)}
                       </p>
-                      <p className="text-[10px] text-slate-500">
+                      <p className="text-[11px] text-slate-500">
                         1回当直手当：
                         {h.duty_pay_per_shift != null
                           ? `${h.duty_pay_per_shift.toLocaleString("ja-JP")}円`
@@ -465,7 +493,7 @@ export default function HonneSearchPage() {
                         className="h-full bg-blue-600"
                         style={{ width: `${baseRatioInner * 100}%` }}
                       />
-                      {/* 手当（当直+残業） */}
+                      {/* 当直＋残業 */}
                       <div
                         className="h-full bg-blue-400"
                         style={{ width: `${dutyOvertimeRatioInner * 100}%` }}
@@ -513,7 +541,9 @@ export default function HonneSearchPage() {
                   <MiniStatCard
                     label="月当直回数"
                     value={
-                      dutyCount != null ? `${dutyCount.toLocaleString("ja-JP")}回` : "—"
+                      duty != null
+                        ? `${duty.toLocaleString("ja-JP")}回`
+                        : "—"
                     }
                   />
                   <MiniStatCard
@@ -540,8 +570,7 @@ export default function HonneSearchPage() {
   );
 }
 
-/* ========= 小さな部品 ========= */
-
+/* ========= 小さな統計カード ========= */
 function MiniStatCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-slate-100 bg-slate-50/60 px-3 py-2 flex flex-col justify-between h-[64px]">

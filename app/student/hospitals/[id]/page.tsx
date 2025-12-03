@@ -9,25 +9,31 @@ import { useDbFavorites } from "@/app/hooks/useDbFavorites";
 
 /* ---------- 年収表示の共通フォーマット ---------- */
 const formatSalary = (max: number | null, min?: number | null) => {
+  // min / max ともに数値じゃない場合
   if (max == null && (min == null || Number.isNaN(min))) {
     return "—";
   }
 
+  // min と max 両方ある場合
   if (min != null && !Number.isNaN(min) && max != null && !Number.isNaN(max)) {
+    // 幅があるときだけレンジ表示
     if (min !== max) {
       const minStr = min.toLocaleString("ja-JP");
       const maxStr = max.toLocaleString("ja-JP");
       return `${minStr}〜${maxStr}万円 / 年`;
     }
+    // 同じなら単一表示
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
+  // max だけ分かる場合
   if (max != null && !Number.isNaN(max)) {
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
+  // min だけ分かる場合（保険）
   if (min != null && !Number.isNaN(min)) {
     const v = min.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
@@ -35,6 +41,9 @@ const formatSalary = (max: number | null, min?: number | null) => {
 
   return "—";
 };
+
+const formatMan = (v: number | null | undefined) =>
+  v == null || Number.isNaN(v) ? "—" : `${v.toLocaleString("ja-JP")}万円`;
 
 /* ---------- 型（public.hospitals_resolved） ---------- */
 type HospitalRow = {
@@ -67,10 +76,9 @@ type HonneRow = {
   duty_pay_per_shift: number | null;
   good_tags: string[] | null;
   bad_tags: string[] | null;
+  salary_1st_year_min: number | null;
+  salary_1st_year_max: number | null;
 };
-
-const formatMan = (v: number | null | undefined) =>
-  v == null || Number.isNaN(v) ? "—" : `${v.toLocaleString("ja-JP")}万円`;
 
 const computeTotalIncome = (h: HonneRow | null, row: HospitalRow | null): number | null => {
   if (h) {
@@ -137,7 +145,7 @@ export default function StudentHospitalDetail() {
     })();
   }, [hospitalId, supabase]);
 
-  // 本音検索用情報（hospitals_honne）を取得
+  // 本音用指標（hospitals_honne）を取得
   useEffect(() => {
     (async () => {
       if (!hospitalId) return;
@@ -145,7 +153,7 @@ export default function StudentHospitalDetail() {
         const { data, error } = await supabase
           .from("hospitals_honne")
           .select(
-            "base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags"
+            "base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,salary_1st_year_min,salary_1st_year_max"
           )
           .eq("id", hospitalId)
           .maybeSingle();
@@ -213,141 +221,145 @@ export default function StudentHospitalDetail() {
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
-      {/* Hero + 本音サマリ */}
-      <section className="rounded-2xl overflow-hidden border bg-white shadow-sm">
-        <div className="md:flex">
-          {hasHero && (
-            <div className="md:w-1/2 w-full h-48 md:h-64 overflow-hidden bg-gray-100">
-              <img
-                src={heroUrl!}
-                alt={row.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
+      {/* Hero + 本音サマリ（レジナビ風） */}
+      <section className="rounded-2xl border bg-slate-50 px-4 py-4 md:px-6 md:py-5">
+        {/* 上段：病院名＆ロケーション */}
+        <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-4">
+          <div>
+            <h1 className="text-xl md:text-2xl font-bold text-slate-900">
+              {row.name}
+            </h1>
+            <p className="text-sm text-text-muted mt-1">
+              {row.prefecture ?? "—"}
+              {row.city ? `・${row.city}` : ""}
+              {row.region ? `（${row.region}）` : ""}
+              {row.facility_type ? `／${row.facility_type}` : ""}
+            </p>
 
-          <div className={hasHero ? "md:w-1/2 w-full p-6 space-y-4" : "w-full p-6 space-y-4"}>
-            <div className="flex flex-col gap-1">
-              <h1 className="text-xl font-semibold text-primary-700">{row.name}</h1>
-              <p className="text-sm text-text-muted">
-                {`${row.prefecture ?? "—"}・${row.city ?? "—"}（${row.region ?? "—"}）`}
-                {row.facility_type ? `／${row.facility_type}` : ""}
-              </p>
-
-              {!isPublished && (
-                <div className="mt-3 inline-flex flex-col gap-1 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700 border border-orange-200">
-                  <span>
-                    この病院の詳細情報は現在、病院側の設定により非公開になっています。
-                  </span>
-                  <span>
-                    他の病院も見てみましょう：
-                    <Link
-                      href="/student/browse"
-                      className="ml-1 underline text-orange-700 hover:text-orange-800"
-                    >
-                      病院を探す
-                    </Link>
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {/* 本音系サマリ */}
-            <div className="grid grid-cols-2 gap-3 text-xs md:text-sm">
-              <div>
-                <p className="text-[11px] text-slate-500">初年度年収（目安）</p>
-                <p className="text-lg font-bold text-primary-700">
-                  {totalIncome != null
-                    ? `${totalIncome.toLocaleString("ja-JP")}万円`
-                    : "—"}
-                </p>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  ベース：{formatMan(honne?.base_salary_annual)}／手当合計：
-                  {formatMan(
-                    (honne?.duty_allowance_annual ?? 0) +
-                      (honne?.overtime_allowance_annual ?? 0) +
-                      (honne?.other_allowance_annual ?? 0)
-                  )}
-                </p>
-                <p className="text-[11px] text-slate-500">
-                  1回当直手当：
-                  {dutyPay != null
-                    ? `${dutyPay.toLocaleString("ja-JP")}円`
-                    : "—"}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 gap-1">
-                <MiniStat
-                  icon="clock"
-                  label="月平均残業"
-                  value={
-                    ot != null ? `${ot.toLocaleString("ja-JP")}h` : "—"
-                  }
-                />
-                <MiniStat
-                  icon="moon"
-                  label="月当直回数"
-                  value={
-                    duty != null ? `${duty.toLocaleString("ja-JP")}回` : "—"
-                  }
-                />
-                <MiniStat
-                  icon="money"
-                  label="推定時給"
-                  value={
-                    hourly != null
-                      ? `${hourly.toLocaleString("ja-JP")}円/h`
-                      : "—"
-                  }
-                />
-              </div>
-            </div>
-
-            {/* タグ */}
-            {(goodTags.length > 0 || badTags.length > 0) && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {goodTags.map((t) => (
-                  <span
-                    key={`good-${t}`}
-                    className="px-2 py-0.5 rounded-full bg-blue-50 text-[10px] text-blue-700"
+            {!isPublished && (
+              <div className="mt-3 inline-flex flex-col gap-1 rounded-lg bg-orange-50 px-3 py-2 text-xs text-orange-700 border border-orange-200">
+                <span>
+                  この病院の詳細情報は現在、病院側の設定により非公開になっています。
+                </span>
+                <span>
+                  他の病院も見てみましょう：
+                  <Link
+                    href="/student/browse"
+                    className="ml-1 underline text-orange-700 hover:text-orange-800"
                   >
-                    {t}
-                  </span>
-                ))}
-                {badTags.map((t) => (
-                  <span
-                    key={`bad-${t}`}
-                    className="px-2 py-0.5 rounded-full bg-red-50 text-[10px] text-red-700"
-                  >
-                    {t}
-                  </span>
-                ))}
+                    病院を探す
+                  </Link>
+                </span>
               </div>
             )}
+          </div>
 
-            {/* アクションボタン行（既存と同じ） */}
-            <div className="flex gap-2 justify-end pt-2">
-              {row.website_url && (
-                <a
-                  href={row.website_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
-                >
-                  公式サイト
-                </a>
-              )}
-              <Link
-                href="/student/saved"
-                className="px-3 py-1.5 rounded border text-sm hover:bg-gray-50"
+          {/* 右上アクション（既存） */}
+          <div className="flex gap-2 items-start">
+            {row.website_url && (
+              <a
+                href={row.website_url}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1.5 rounded border text-xs md:text-sm hover:bg-gray-50"
               >
-                検討リストを開く
-              </Link>
-              <FavButton hospitalId={row.id} />
-            </div>
+                公式サイト
+              </a>
+            )}
+            <Link
+              href="/student/saved"
+              className="px-3 py-1.5 rounded border text-xs md:text-sm hover:bg-gray-50"
+            >
+              検討リストを開く
+            </Link>
+            <FavButton hospitalId={row.id} />
           </div>
         </div>
+
+        {/* 中段：画像＋本音テーブル */}
+        <div className="flex flex-col md:flex-row gap-4 md:gap-6">
+          {/* 左：写真 */}
+          <div className="md:w-1/2 w-full">
+            {hasHero ? (
+              <div className="rounded-xl overflow-hidden bg-gray-100">
+                <img
+                  src={heroUrl!}
+                  alt={row.name}
+                  className="w-full h-48 md:h-56 object-cover"
+                />
+              </div>
+            ) : (
+              <div className="rounded-xl bg-slate-100 h-32 md:h-40 flex items-center justify-center text-xs text-slate-500">
+                画像は準備中です
+              </div>
+            )}
+          </div>
+
+          {/* 右：テーブル風の本音サマリ */}
+          <div className="md:w-1/2 w-full rounded-xl bg-white border border-slate-100 text-sm">
+            <dl className="divide-y divide-slate-100">
+              <RowItem
+                label="初年度年収（目安）"
+                value={
+                  totalIncome != null
+                    ? `${totalIncome.toLocaleString("ja-JP")}万円`
+                    : "—"
+                }
+                icon={<DollarSign className="w-4 h-4 text-primary-500" />}
+              />
+              <RowItem
+                label="月平均残業"
+                value={ot != null ? `${ot.toLocaleString("ja-JP")}h/月` : "—"}
+                icon={<Clock className="w-4 h-4 text-slate-500" />}
+              />
+              <RowItem
+                label="月当直回数"
+                value={duty != null ? `${duty.toLocaleString("ja-JP")}回/月` : "—"}
+                icon={<Clock className="w-4 h-4 text-slate-500" />}
+              />
+              <RowItem
+                label="推定時給"
+                value={
+                  hourly != null
+                    ? `${hourly.toLocaleString("ja-JP")}円/h`
+                    : "—"
+                }
+                icon={<DollarSign className="w-4 h-4 text-primary-500" />}
+              />
+              <RowItem
+                label="1回当直手当"
+                value={
+                  dutyPay != null
+                    ? `${dutyPay.toLocaleString("ja-JP")}円/回`
+                    : "—"
+                }
+                icon={<DollarSign className="w-4 h-4 text-primary-500" />}
+              />
+            </dl>
+          </div>
+        </div>
+
+        {/* 下段：Good / Bad タグ（あれば） */}
+        {(goodTags.length > 0 || badTags.length > 0) && (
+          <div className="mt-4 flex flex-wrap gap-1">
+            {goodTags.map((t) => (
+              <span
+                key={`good-${t}`}
+                className="px-2 py-0.5 rounded-full bg-blue-50 text-[10px] text-blue-700"
+              >
+                {t}
+              </span>
+            ))}
+            {badTags.map((t) => (
+              <span
+                key={`bad-${t}`}
+                className="px-2 py-0.5 rounded-full bg-red-50 text-[10px] text-red-700"
+              >
+                {t}
+              </span>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 概要（公開/非公開に関係なく表示） */}
@@ -418,26 +430,23 @@ export default function StudentHospitalDetail() {
   );
 }
 
-/* ===== ミニ統計カード ===== */
-function MiniStat({
-  icon,
+/* ===== Hero右側の行（ラベル＋値） ===== */
+function RowItem({
   label,
   value,
+  icon,
 }: {
-  icon: "clock" | "moon" | "money";
   label: string;
   value: string;
+  icon?: React.ReactNode;
 }) {
-  const Icon =
-    icon === "money" ? DollarSign : icon === "clock" ? Clock : Clock; // ※アイコン使い分けたければ増やせる
-
   return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2 flex flex-col justify-between h-[54px]">
-      <span className="text-[10px] text-slate-500 flex items-center gap-1">
-        <Icon className="w-3 h-3 text-slate-400" />
-        {label}
-      </span>
-      <span className="text-sm font-semibold text-slate-800 mt-1">{value}</span>
+    <div className="flex items-center justify-between px-3 py-2">
+      <div className="flex items-center gap-2 text-xs text-slate-600">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
     </div>
   );
 }
@@ -456,6 +465,7 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
     refresh?: () => Promise<void>;
   };
 
+  // フックが未初期化でも安全に
   const safeHas = (id: string) =>
     (typeof fav?.isFavorite === "function" && fav.isFavorite(id)) ||
     (typeof fav?.has === "function" && fav.has(id)) ||
@@ -465,6 +475,7 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
   const [active, setActive] = useState<boolean>(safeHas(hospitalId));
   const [busy, setBusy] = useState(false);
 
+  // フック側の list 変化に追随
   useEffect(() => {
     setActive(safeHas(hospitalId));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -473,6 +484,7 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
   const toggle = async () => {
     if (busy) return;
     setBusy(true);
+    // 楽観更新
     setActive((prev) => !prev);
     try {
       if (typeof fav?.toggleFavorite === "function") {

@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import Image from "next/image";
 import { Heart } from "lucide-react";
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { useDbFavorites } from "@/app/hooks/useDbFavorites";
@@ -132,23 +131,14 @@ export default function StudentHospitalDetail() {
     );
   }
 
-  // 非公開のときは常にデフォルト画像
-  const heroSrc = isPublished && heroUrl ? heroUrl : "/images/hero-hospital.jpg";
+  const hasHero = !!heroUrl; // ★ URLがあるときだけ画像を出す
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
       {/* Hero */}
       <section className="rounded-xl overflow-hidden border bg-gray-50">
-        {isPublished && heroUrl ? (
-          <img src={heroSrc} alt={row.name} className="object-cover w-full h-64" />
-        ) : (
-          <Image
-            src={heroSrc}
-            alt={row.name}
-            width={1200}
-            height={360}
-            className="object-cover w-full h-64"
-          />
+        {hasHero && (
+          <img src={heroUrl!} alt={row.name} className="object-cover w-full h-64" />
         )}
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-6 py-4 bg-white border-t">
           <div>

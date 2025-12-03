@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/api/contact",
   "/api/supa-health",
   "/login",
+  "/login_hospital", // ★ 追加：病院専用ログイン
   "/signup",
   "/favicon.ico",
   "/robots.txt",
@@ -20,26 +21,25 @@ const PUBLIC_PATHS = [
 
 export async function middleware(req: NextRequest) {
   const url = req.nextUrl;
-  const hostname = url.hostname; // 'host' ではなく 'hostname' を比較
+  const hostname = url.hostname;
   const pathname = url.pathname;
 
-  // 0) 本番は Primary ドメインに統一（サブドメイン、preview URL、古い Alias 等の揺れを排除）
+  // 0) 本番は Primary ドメインに統一
   if (
     process.env.NODE_ENV === "production" &&
     hostname !== CANONICAL_HOST &&
-    !hostname.endsWith(".vercel.live") && // preview 実行時の vercel ライブドメインは開発用に許可
+    !hostname.endsWith(".vercel.live") &&
     hostname !== "localhost" &&
     hostname !== "127.0.0.1"
   ) {
     const redirectUrl = new URL(req.url);
-    redirectUrl.hostname = CANONICAL_HOST; // ポートを含めないため 'hostname' を使用
-    // 308 は method/body を保持。API も統一したいならこのままでOK。
+    redirectUrl.hostname = CANONICAL_HOST;
     return NextResponse.redirect(redirectUrl, 308);
   }
 
   const res = NextResponse.next();
 
-  // 1) /api/session は完全スルー（Cookie 発行/削除に干渉しない）
+  // 1) /api/session は完全スルー
   if (pathname === "/api/session") return res;
 
   // 2) 静的ファイル/_next は対象外
@@ -52,7 +52,9 @@ export async function middleware(req: NextRequest) {
   }
 
   const isApi = pathname.startsWith("/api");
-  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(p));
+  const isPublic = PUBLIC_PATHS.some(
+    (p) => pathname === p || pathname.startsWith(p)
+  );
 
   // 3) Supabase → Cookie の順に role 判定
   let supaRole: "student" | "hospital" | undefined;
@@ -61,28 +63,38 @@ export async function middleware(req: NextRequest) {
     const {
       data: { session },
     } = await supabase.auth.getSession();
-    supaRole = session?.user?.user_metadata?.role as "student" | "hospital" | undefined;
+    supaRole = session?.user?.user_metadata?.role as
+      | "student"
+      | "hospital"
+      | undefined;
   } catch {
     // swallow
   }
-  const cookieRole = req.cookies.get("role")?.value as "student" | "hospital" | undefined;
+  const cookieRole = req.cookies.get("role")?.value as
+    | "student"
+    | "hospital"
+    | undefined;
   const role = supaRole ?? cookieRole;
 
-  // 4) 未ログインの場合：/login・/signup・一部API以外のすべてのページをブロック
+  // 4) 未ログインの場合：/login・/signup・/login_hospital・一部API以外のすべてのページをブロック
   if (!role) {
-    // API は従来どおり基本スルー（RLS や各 route 内の認可に任せる）
+    // API は従来どおり基本スルー
     if (!isPublic && !isApi) {
       const u = url.clone();
       u.pathname = "/login";
-      // 元いたパスを next パラメータで保持してもOK（必要なら）
       u.searchParams.set("next", pathname);
       return NextResponse.redirect(u);
     }
     return res;
   }
 
-  // 5) ログイン済み：/・/login・/signup を開いたら各ダッシュボードへ
-  if (pathname === "/" || pathname === "/login" || pathname === "/signup") {
+  // 5) ログイン済み：/・/login・/signup・/login_hospital を開いたら各ダッシュボードへ
+  if (
+    pathname === "/" ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/login_hospital" // ★ 追加
+  ) {
     const u = url.clone();
     u.pathname = role === "hospital" ? "/hospital/dashboard" : "/student/dashboard";
     return NextResponse.redirect(u);

@@ -78,6 +78,8 @@ type HonneRow = {
   bad_tags: string[] | null;
   salary_1st_year_min: number | null;
   salary_1st_year_max: number | null;
+  selection_method: string | null; // ★ 追加
+  match_ratio: number | null;      // ★ 追加
 };
 
 const computeTotalIncome = (h: HonneRow | null, row: HospitalRow | null): number | null => {
@@ -153,7 +155,7 @@ export default function StudentHospitalDetail() {
         const { data, error } = await supabase
           .from("hospitals_honne")
           .select(
-            "base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,salary_1st_year_min,salary_1st_year_max"
+            "base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,salary_1st_year_min,salary_1st_year_max,selection_method,match_ratio"
           )
           .eq("id", hospitalId)
           .maybeSingle();
@@ -218,6 +220,10 @@ export default function StudentHospitalDetail() {
   const dutyPay = honne?.duty_pay_per_shift ?? null;
   const goodTags = honne?.good_tags ?? [];
   const badTags = honne?.bad_tags ?? [];
+
+  const selectionMethod = honne?.selection_method || "—";
+  const matchRatioText =
+    honne?.match_ratio != null ? `${honne.match_ratio.toFixed(1)}倍` : "—";
 
   return (
     <main className="max-w-5xl mx-auto px-8 py-6 space-y-10">
@@ -334,6 +340,16 @@ export default function StudentHospitalDetail() {
                     : "—"
                 }
                 icon={<DollarSign className="w-4 h-4 text-primary-500" />}
+              />
+              {/* ★ 追加：選考方法 */}
+              <RowItem
+                label="選考方法"
+                value={selectionMethod}
+              />
+              {/* ★ 追加：マッチ倍率 */}
+              <RowItem
+                label="マッチ倍率"
+                value={matchRatioText}
               />
             </dl>
           </div>

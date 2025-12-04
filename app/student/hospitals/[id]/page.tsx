@@ -284,22 +284,22 @@ export default function StudentHospitalDetail() {
 
         {/* 中段：画像＋本音テーブル */}
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
-          {/* 左：写真 */}
-          <div className="md:w-1/2 w-full">
-            {hasHero ? (
-              <div className="rounded-xl overflow-hidden bg-gray-100">
-                <img
-                  src={heroUrl!}
-                  alt={row.name}
-                  className="w-full h-48 md:h-56 object-cover"
-                />
-              </div>
-            ) : (
-              <div className="rounded-xl bg-slate-100 h-32 md:h-40 flex items-center justify-center text-xs text-slate-500">
-                画像は準備中です
-              </div>
-            )}
-          </div>
+{/* 左：写真 */}
+<div className="md:w-1/2 w-full flex items-center">
+  {hasHero ? (
+    <div className="w-full rounded-xl overflow-hidden bg-gray-100">
+      <img
+        src={heroUrl!}
+        alt={row.name}
+        className="w-full h-48 md:h-56 object-cover"
+      />
+    </div>
+  ) : (
+    <div className="w-full rounded-xl bg-slate-100 h-32 md:h-40 flex items-center justify-center text-xs text-slate-500">
+      画像は準備中です
+    </div>
+  )}
+</div>
 
           {/* 右：テーブル風の本音サマリ */}
           <div className="md:w-1/2 w-full rounded-xl bg-white border border-slate-100 text-sm">

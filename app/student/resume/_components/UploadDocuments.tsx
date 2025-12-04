@@ -226,46 +226,36 @@ export default function UploadDocuments({ studentId }: Props) {
       {/* アップロード済み一覧 */}
       <div>
         <h4 className="font-semibold text-primary-700 mb-2">アップロード済み</h4>
-        <ul className="divide-y border rounded">
-          {list.map((row) => (
-            <li
-              key={row.id}
-              className="flex items-center justify-between px-3 py-2 text-sm"
-            >
-              <div className="min-w-0">
-                <p className="font-medium truncate">
-                  {row.title}{" "}
-                  <span className="text-gray-500 ml-2">({row.doc_type})</span>
-                </p>
-                <p className="text-xs text-gray-500">
-                  {row.file_name} / {row.mime_type ?? "?"} /{" "}
-                  {(row.size_bytes ?? 0).toLocaleString()} bytes
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button
-                  className="text-primary-600 hover:underline"
-                  onClick={() => onPreview(row)}
-                  disabled={busy}
-                >
-                  表示
-                </button>
-                <button
-                  className="text-red-600 hover:underline"
-                  onClick={() => onDelete(row)}
-                  disabled={busy}
-                >
-                  削除
-                </button>
-              </div>
-            </li>
-          ))}
-          {list.length === 0 && (
-            <li className="px-3 py-6 text-center text-gray-500 text-sm">
-              まだアップロードはありません
-            </li>
-          )}
-        </ul>
+<ul className="divide-y border rounded">
+  {list.map((row) => (
+    <li key={row.id} className="flex items-center justify-between px-3 py-2 text-sm">
+      <div className="min-w-0">
+        <p className="font-medium truncate">
+          {row.title} <span className="text-gray-500 ml-2">({row.doc_type})</span>
+        </p>
+        <p className="text-xs text-gray-500">
+          {row.file_name} / {row.mime_type ?? "?"} / {(row.size_bytes ?? 0).toLocaleString()} bytes
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        {/* 「表示」ボタン削除済み */}
+        <button
+          className="text-red-600 hover:underline"
+          onClick={() => onDelete(row)}
+          disabled={busy}
+        >
+          削除
+        </button>
+      </div>
+    </li>
+  ))}
+
+  {list.length === 0 && (
+    <li className="px-3 py-6 text-center text-gray-500 text-sm">
+      まだアップロードはありません
+    </li>
+  )}
+</ul>
       </div>
     </section>
   );

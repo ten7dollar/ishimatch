@@ -38,34 +38,44 @@ export default function ResetPasswordConfirmPage() {
         const finalTokenHash = token_hash || token_hash_h;
         const finalType = type || type_h;
 
+        // 初期メッセージは一旦消しておく（成功したら何も出さない）
+        setMsg(null);
+
+        // セッション確立を試す（失敗しても即エラーメッセージは出さない）
         if (finalTokenHash && finalType) {
-          // token_hash 方式でセッション作成（PKCEのcode_verifier不要）
           const { error } = await supabase.auth.verifyOtp({
             type: finalType as any, // "recovery"
             token_hash: finalTokenHash,
           });
           if (error) {
             console.warn("[reset-password/confirm] verifyOtp error:", error.message);
-            setMsg("リンクが無効か期限切れの可能性があります。もう一度「パスワードリセット」からやり直してください。");
           }
         } else if (code && code.length > 0) {
-          // code がある時だけ exchange（ガード）
           const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
           if (error) {
             console.warn("[reset-password/confirm] exchange error:", error.message);
-            setMsg(
-              "セッションの確立に失敗しました。メールのリンクを同じブラウザで開いているか確認し、難しければもう一度リセットをお試しください。"
-            );
           }
         } else {
-          setMsg("メールの再設定リンクからこのページを開いてください。");
+          // token/code がない → ここではまだ最終判断しない（後でsession確認）
+          console.warn("[reset-password/confirm] no token/code found in url");
         }
 
-        // session確認
+        // ★ 最終的に session が取れるかで判定する（ここが本丸）
         const { data } = await supabase.auth.getSession();
-        setHasSession(!!data.session);
+        const ok = !!data.session;
+        setHasSession(ok);
+
+        // session が無い場合だけメッセージを出す（＝誤表示を防ぐ）
+        if (!ok) {
+          setMsg(
+            "セッションの確立に失敗しました。メールのリンクを同じブラウザで開いているか確認し、難しければもう一度リセットをお試しください。"
+          );
+        } else {
+          setMsg(null);
+        }
       } catch (e: any) {
         console.error("[reset-password/confirm] unexpected", e);
+        setHasSession(false);
         setMsg("処理中にエラーが発生しました。もう一度リセットをお試しください。");
       } finally {
         setReady(true);
@@ -90,8 +100,10 @@ export default function ResetPasswordConfirmPage() {
 
     setBusy(true);
     try {
+      // 念のためここでも session を再確認
       const { data } = await supabase.auth.getSession();
       if (!data.session) {
+        setHasSession(false);
         setMsg("認証セッションがありません。メールのリンクからもう一度お試しください。");
         return;
       }
@@ -130,48 +142,39 @@ export default function ResetPasswordConfirmPage() {
         {!ready ? (
           <p className="text-sm text-gray-600">確認中…</p>
         ) : (
-          <>
-            {!hasSession && (
-              <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                <p>認証セッションを確立できませんでした。</p>
-                <p className="mt-1">「パスワードリセット」からやり直してください。</p>
-              </div>
-            )}
+          <form onSubmit={onUpdate} className="space-y-4">
+            <div>
+              <label className="block text-sm mb-1 text-text-muted">
+                新しいパスワード（8文字以上）
+              </label>
+              <input
+                type="password"
+                value={pw1}
+                onChange={(e) => setPw1(e.target.value)}
+                className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+                required
+                disabled={!hasSession}
+              />
+            </div>
 
-            <form onSubmit={onUpdate} className="space-y-4">
-              <div>
-                <label className="block text-sm mb-1 text-text-muted">
-                  新しいパスワード（8文字以上）
-                </label>
-                <input
-                  type="password"
-                  value={pw1}
-                  onChange={(e) => setPw1(e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
-                  required
-                  disabled={!hasSession}
-                />
-              </div>
+            <div>
+              <label className="block text-sm mb-1 text-text-muted">
+                新しいパスワード（確認）
+              </label>
+              <input
+                type="password"
+                value={pw2}
+                onChange={(e) => setPw2(e.target.value)}
+                className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
+                required
+                disabled={!hasSession}
+              />
+            </div>
 
-              <div>
-                <label className="block text-sm mb-1 text-text-muted">
-                  新しいパスワード（確認）
-                </label>
-                <input
-                  type="password"
-                  value={pw2}
-                  onChange={(e) => setPw2(e.target.value)}
-                  className="w-full border rounded-md px-3 py-2 focus:ring focus:ring-primary-300"
-                  required
-                  disabled={!hasSession}
-                />
-              </div>
-
-              <button disabled={busy || !hasSession} className="btn-primary w-full">
-                {busy ? "更新中..." : "パスワードを更新"}
-              </button>
-            </form>
-          </>
+            <button disabled={busy || !hasSession} className="btn-primary w-full">
+              {busy ? "更新中..." : "パスワードを更新"}
+            </button>
+          </form>
         )}
 
         {msg && <p className="text-sm text-gray-600 mt-4">{msg}</p>}

@@ -11,6 +11,14 @@ export default function ResetPasswordRequestPage() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const getBaseUrl = () => {
+    // 本番は必ず www.resi-match.com に寄せる（ドメイン揺れでPKCEが壊れるのを防ぐ）
+    // Vercel の env に NEXT_PUBLIC_SITE_URL=https://www.resi-match.com を入れておくのが理想
+    const env = process.env.NEXT_PUBLIC_SITE_URL;
+    if (env && /^https?:\/\//.test(env)) return env.replace(/\/$/, "");
+    return window.location.origin;
+  };
+
   const onSend = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
@@ -18,7 +26,7 @@ export default function ResetPasswordRequestPage() {
     setMsg(null);
 
     try {
-      const redirectTo = `${window.location.origin}/reset-password/confirm`;
+      const redirectTo = `${getBaseUrl()}/reset-password/confirm`;
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo,
@@ -27,7 +35,7 @@ export default function ResetPasswordRequestPage() {
       if (error) throw error;
 
       setMsg(
-        "パスワード再設定メールを送信しました。届かない場合は迷惑メールもご確認ください。"
+        "パスワード再設定メールを送信しました。届くまで数分かかる場合があります（迷惑メールもご確認ください）。"
       );
     } catch (e: any) {
       console.error("[reset-password] send error", e);
@@ -48,9 +56,7 @@ export default function ResetPasswordRequestPage() {
             width={123}
             priority
           />
-          <p className="text-text-muted text-sm mt-2">
-            パスワード再設定
-          </p>
+          <p className="text-text-muted text-sm mt-2">パスワード再設定</p>
         </div>
 
         <h1 className="text-lg font-semibold mb-3 text-primary-700">

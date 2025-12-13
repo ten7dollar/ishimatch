@@ -4,13 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Filter, Heart, MessageCircle, TrendingUp } from "lucide-react";
-import {
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  Radar,
-  ResponsiveContainer,
-} from "recharts";
 
 import { createSupabaseBrowser } from "@/app/lib/supabase/client";
 import { useFavoriteHospitals } from "../_providers/favorite-hospitals";
@@ -68,20 +61,13 @@ const truncate = (text: string, max: number) => {
   return text.slice(0, max) + "…";
 };
 
-// レーダーチャート用の簡易ダミーデータ（後でDB値に差し替え予定）
-const radarData = [
-  { subject: "給与", A: 4 },
-  { subject: "手技", A: 5 },
-  { subject: "教育", A: 3 },
-  { subject: "症例数", A: 4 },
-  { subject: "当直", A: 2 },
-];
-
 export default function StudentDashboard() {
   const supabase = useMemo(() => createSupabaseBrowser(), []);
 
-  /* ========== KPI ========== */
+  // ★ β版フラグ：面談申込みは停止
+  const BETA_APPLY_DISABLED = true;
 
+  /* ========== KPI ========== */
   const { count: favoritesCount } = useFavoriteHospitals();
   const [unreadCount, setUnreadCount] = useState(0);
 
@@ -141,7 +127,6 @@ export default function StudentDashboard() {
   }, []);
 
   /* ========== 初年度年収ランキング ========== */
-
   const [ranking, setRanking] = useState<HospitalRow[]>([]);
   const [rankingHeroMap, setRankingHeroMap] = useState<HeroMap>({});
   const [rankingLoading, setRankingLoading] = useState(false);
@@ -152,9 +137,7 @@ export default function StudentDashboard() {
       try {
         const { data, error } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .not("salary_1st_year_max", "is", null)
           .order("salary_1st_year_max", { ascending: false })
           .limit(3);
@@ -185,10 +168,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           ranking.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -208,7 +191,6 @@ export default function StudentDashboard() {
   }, [ranking]);
 
   /* ========== あなたへのおすすめ（HEROあり & 公開中からランダム3件） ========== */
-
   const [recommended, setRecommended] = useState<HospitalRow[]>([]);
   const [recommendedHeroMap, setRecommendedHeroMap] = useState<HeroMap>({});
 
@@ -238,9 +220,7 @@ export default function StudentDashboard() {
 
         const { data: hospRows, error: hospErr } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .in("id", ids);
 
         if (hospErr) {
@@ -275,10 +255,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           recommended.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -336,6 +316,28 @@ export default function StudentDashboard() {
           </Link>
         </div>
       </header>
+
+      {/* ★ β告知（面談申込み停止） */}
+      {BETA_APPLY_DISABLED && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 md:px-6 md:py-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1">
+              <p className="text-sm md:text-base font-semibold text-amber-900">
+                β版のため、現在は面談申し込み受付停止中です
+              </p>
+              <p className="text-xs md:text-sm text-amber-800">
+                病院の情報収集・本音検索・検討リスト作成をご利用ください（申込機能は準備でき次第公開します）。
+              </p>
+            </div>
+            <Link
+              href="/student/contact"
+              className="shrink-0 px-3 py-1.5 rounded bg-white border text-xs md:text-sm hover:bg-amber-100 transition"
+            >
+              問い合わせ
+            </Link>
+          </div>
+        </section>
+      )}
 
       {/* 検索導線：本音検索 / 通常検索 */}
       <section className="grid md:grid-cols-2 gap-4 pt-2">
@@ -418,14 +420,8 @@ export default function StudentDashboard() {
 
             {ranking.map((h, idx) => {
               const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
-              const salaryText = formatSalary(
-                h.salary_1st_year_max,
-                h.salary_1st_year_min
-              );
-              const pr = truncate(
-                h.pr_highlights ?? "PR情報は準備中です。",
-                50
-              );
+              const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+              const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 50);
 
               const badgeGradient =
                 idx === 0
@@ -443,46 +439,27 @@ export default function StudentDashboard() {
                   className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                 >
                   <div className="rounded-2xl bg-white flex flex-col h-full">
-                    {/* ランクバッジ */}
                     <div className="px-4 pt-3 flex justify-between items-center">
-                      <span
-                        className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}
-                      >
+                      <span className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
                         {rankLabel}
                       </span>
                     </div>
 
-                    {/* 画像 */}
                     <div className="w-full h-32 mt-2 overflow-hidden">
                       {rankingHeroMap[h.id] ? (
-                        <img
-                          src={hero}
-                          alt={h.name}
-                          className="w-full h-full object-cover"
-                        />
+                        <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                       ) : (
-                        <Image
-                          src={hero}
-                          alt={h.name}
-                          width={400}
-                          height={128}
-                          className="w-full h-full object-cover"
-                        />
+                        <Image src={hero} alt={h.name} width={400} height={128} className="w-full h-full object-cover" />
                       )}
                     </div>
 
-                    {/* コンテンツ */}
                     <div className="p-4 flex flex-col gap-2 flex-1">
                       <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 w-fit">
                         {h.prefecture ?? "—"}・初期
                       </span>
-                      <p className="text-sm font-semibold text-primary-800 line-clamp-2">
-                        {h.name}
-                      </p>
+                      <p className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</p>
                       <p className="text-lg font-bold text-primary-800">{salaryText}</p>
-                      <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
-                        {pr}
-                      </p>
+                      <p className="text-xs text-text-muted leading-relaxed line-clamp-3">{pr}</p>
                     </div>
                   </div>
                 </Link>
@@ -492,7 +469,7 @@ export default function StudentDashboard() {
         </div>
       </section>
 
-      {/* あなたへのおすすめ */}
+      {/* あなたへのおすすめ（グラフ削除済み） */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
@@ -504,16 +481,9 @@ export default function StudentDashboard() {
               </p>
             ) : (
               recommended.map((h) => {
-                const hero =
-                  recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
-                const salaryText = formatSalary(
-                  h.salary_1st_year_max,
-                  h.salary_1st_year_min
-                );
-                const pr = truncate(
-                  h.pr_highlights ?? "あなたの条件に近い病院です。",
-                  60
-                );
+                const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
+                const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+                const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 60);
 
                 return (
                   <Link
@@ -522,32 +492,18 @@ export default function StudentDashboard() {
                     className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                   >
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
-                      {/* 画像 */}
                       <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
                         {recommendedHeroMap[h.id] ? (
-                          <img
-                            src={hero}
-                            alt={h.name}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                         ) : (
-                          <Image
-                            src={hero}
-                            alt={h.name}
-                            width={400}
-                            height={96}
-                            className="w-full h-full object-cover"
-                          />
+                          <Image src={hero} alt={h.name} width={400} height={96} className="w-full h-full object-cover" />
                         )}
                       </div>
 
-                      {/* コンテンツ */}
                       <div className="p-4 flex flex-col gap-2 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <h3 className="text-sm font-semibold text-primary-800 line-clamp-2">
-                              {h.name}
-                            </h3>
+                            <h3 className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</h3>
                             <p className="text-xs text-text-muted">
                               {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
                             </p>
@@ -557,40 +513,13 @@ export default function StudentDashboard() {
                           </span>
                         </div>
 
-                        {/* PRはSPでは少し抑えめに */}
                         <p className="text-xs text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4">
-                          <span className="font-semibold text-primary-800">
-                            {salaryText}
-                          </span>
+                          <span className="font-semibold text-primary-800">{salaryText}</span>
                           <span className="ml-1">{pr}</span>
                         </p>
 
-                        {/* グラフ：カード下部中央に寄せる */}
-                        <div className="mt-3 flex justify-center">
-                          <div className="w-20 h-20 md:w-24 md:h-24">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart
-                                cx="50%"
-                                cy="50%"
-                                outerRadius="70%"
-                                data={radarData}
-                              >
-                                <PolarGrid />
-                                <PolarAngleAxis
-                                  dataKey="subject"
-                                  tick={{ fontSize: 9 }}
-                                />
-                                <Radar
-                                  name="スコア"
-                                  dataKey="A"
-                                  stroke="#0077B6"
-                                  fill="#0077B6"
-                                  fillOpacity={0.3}
-                                />
-                              </RadarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </div>
+                        {/* グラフ削除後の余白を整える（下に少しだけスペーサー） */}
+                        <div className="pt-2" />
                       </div>
                     </div>
                   </Link>

@@ -47,6 +47,9 @@ export default function ApplyClient() {
 
   const [busy, setBusy] = useState(false);
 
+  // ★ β版フラグ：初回面談申込は現在停止
+  const BETA_APPLY_DISABLED = true;
+
   // 学生情報の取得（DB → auth.metadata → localStorage）
   async function loadStudentProfile(): Promise<StudentProfile> {
     let name = "", email = "", university = "", gradYear: number | undefined = undefined;
@@ -85,8 +88,13 @@ export default function ApplyClient() {
     return { name, email, university, gradYear };
   }
 
-  // 申込送信
+  // 申込送信（βでは実行させない）
   const handleSend = async () => {
+    if (BETA_APPLY_DISABLED) {
+      alert("β版のため、現在は初回面談のオンライン申込みは受け付けていません。");
+      return;
+    }
+
     if (!hospital || busy) return;
     setBusy(true);
     try {
@@ -202,7 +210,41 @@ export default function ApplyClient() {
       <h1 className="text-2xl font-bold">初回面談を申し込む</h1>
       <p className="text-gray-600">{hospital.name} への初回面談申し込み</p>
 
-      {/* 病院カード */}
+      {/* ★ β版の告知（受付停止） */}
+      {BETA_APPLY_DISABLED && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+          <h2 className="font-semibold text-amber-800">β版のため現在は受付停止中です</h2>
+          <p className="text-sm text-amber-800">
+            申し訳ありません。現在は学生向けβ版として公開しており、
+            <span className="font-semibold">オンラインでの初回面談申し込み機能は一時停止</span>しています。
+          </p>
+          <p className="text-sm text-amber-800">
+            代わりに、病院の情報収集・本音検索・検討リストの作成をご活用ください。
+          </p>
+          <div className="pt-2 flex flex-wrap gap-2">
+            <Link
+              href="/student/browse"
+              className="px-3 py-1.5 rounded bg-white border text-sm hover:bg-amber-100 transition"
+            >
+              通常検索へ
+            </Link>
+            <Link
+              href="/student/honne"
+              className="px-3 py-1.5 rounded bg-white border text-sm hover:bg-amber-100 transition"
+            >
+              本音検索へ
+            </Link>
+            <Link
+              href="/student/contact"
+              className="px-3 py-1.5 rounded bg-primary-600 text-white text-sm hover:bg-primary-700 transition"
+            >
+              問い合わせる
+            </Link>
+          </div>
+        </section>
+      )}
+
+      {/* 病院カード（閲覧用に残す） */}
       <section className="rounded-xl border bg-white p-4 flex items-center gap-3">
         <div className="w-10 h-10 rounded bg-primary-600 text-white flex items-center justify-center font-semibold">
           {hospital.name.slice(0, 2)}
@@ -210,14 +252,15 @@ export default function ApplyClient() {
         <div className="font-semibold text-primary-700">{hospital.name}</div>
       </section>
 
-      {/* チェックリスト（UI表示のみ） */}
+      {/* チェックリスト（βでも表示は残してOK：将来のUXの名残） */}
       <section className="rounded-xl border bg-white p-4 space-y-3">
-        <h2 className="font-semibold text-primary-700">申し込み前のチェックリスト</h2>
+        <h2 className="font-semibold text-primary-700">申し込み前のチェックリスト（参考）</h2>
         <label className="flex gap-2 items-center text-sm">
           <input
             type="checkbox"
             checked={profileOk}
             onChange={() => setProfileOk(!profileOk)}
+            disabled={BETA_APPLY_DISABLED}
           />
           基本情報は登録されていますか？（氏名・メール・卒業年）
         </label>
@@ -226,25 +269,28 @@ export default function ApplyClient() {
             type="checkbox"
             checked={motivationOk}
             onChange={() => setMotivationOk(!motivationOk)}
+            disabled={BETA_APPLY_DISABLED}
           />
           志望動機・自己紹介の内容を確認しましたか？
         </label>
         <p className="text-xs text-gray-500">
-          チェックは任意ですが、事前に内容を整理してから申し込むことをおすすめします。
+          ※ β期間中は申込みできません（準備ができ次第、機能を公開します）。
         </p>
       </section>
 
-      {/* 病院へのメッセージ */}
+      {/* 病院へのメッセージ（βでは入力は残してもいいが、送られないのでdisabled推奨） */}
       <section className="rounded-xl border bg-white p-4 space-y-3">
-        <h2 className="font-semibold text-primary-700">病院へのメッセージ（任意）</h2>
+        <h2 className="font-semibold text-primary-700">病院へのメッセージ（参考）</h2>
         <p className="text-xs text-gray-500">
           志望理由や、見学・面談で特に聞きたいことなどを自由に記入してください（400字程度）。
+          ※ β期間中は送信されません。
         </p>
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value.slice(0, maxMessageLength))}
           rows={6}
-          className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-primary-200"
+          disabled={BETA_APPLY_DISABLED}
+          className="w-full border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring focus:ring-primary-200 disabled:bg-gray-50"
           placeholder="例）貴院の救急医療に関する研修内容に強く興味があります。..."
         />
         <div className="text-right text-xs text-gray-500">
@@ -252,20 +298,20 @@ export default function ApplyClient() {
         </div>
       </section>
 
-      {/* 送信 */}
-      <div className="text-right">
-        <button
-          onClick={handleSend}
-          disabled={busy}
-          className={`px-5 py-2 rounded text-white ${
-            busy
-              ? "bg-gray-300 cursor-not-allowed"
-              : "bg-primary-600 hover:bg-primary-700"
-          }`}
-        >
-          {busy ? "送信中..." : "申し込む"}
-        </button>
-      </div>
+      {/* ★ 送信ボタンはβでは表示しない（DBに一切書かれないようにする） */}
+      {!BETA_APPLY_DISABLED && (
+        <div className="text-right">
+          <button
+            onClick={handleSend}
+            disabled={busy}
+            className={`px-5 py-2 rounded text-white ${
+              busy ? "bg-gray-300 cursor-not-allowed" : "bg-primary-600 hover:bg-primary-700"
+            }`}
+          >
+            {busy ? "送信中..." : "申し込む"}
+          </button>
+        </div>
+      )}
     </main>
   );
 }

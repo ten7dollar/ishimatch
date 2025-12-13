@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
   "/login",
   "/login_hospital", // ★ 追加：病院専用ログイン
   "/signup",
+  "/reset-password",
   "/favicon.ico",
   "/robots.txt",
 ];

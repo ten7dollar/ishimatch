@@ -136,7 +136,8 @@ export default function LoginPage() {
             新規登録（学生）
           </a>
           <span>・</span>
-          <a href="#" className="text-text-muted hover:underline">
+          {/* ★ ここを有効なページへ */}
+          <a href="/reset-password" className="text-text-muted hover:underline">
             パスワードリセット
           </a>
         </div>

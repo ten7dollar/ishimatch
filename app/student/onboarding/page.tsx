@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { createSupabaseBrowser } from '@/app/lib/supabase/client';
 
 /** ---- 型 ---- */
@@ -115,6 +116,7 @@ export default function StudentOnboardingPage() {
         setLastKana(row.last_name_kana ?? '');
         setFirstKana(row.first_name_kana ?? '');
         setGender((row.gender as Gender) ?? '');
+
         // birthdate → 年月日に分解
         if (row.birthdate && /^\d{4}-\d{2}-\d{2}$/.test(row.birthdate)) {
           const [y, m, d] = row.birthdate
@@ -124,10 +126,10 @@ export default function StudentOnboardingPage() {
           setBirthMonth(m || '');
           setBirthDay(d || '');
         }
+
         setUniversity(row.university ?? '');
         setFaculty(row.faculty ?? '');
         setGradYear(row.grad_year ?? '');
-
         setPhone(row.phone ?? '');
 
         // preferences 互換
@@ -177,9 +179,7 @@ export default function StudentOnboardingPage() {
 
         const birthdate =
           birthYear && birthMonth && birthDay
-            ? `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(
-                birthDay,
-              ).padStart(2, '0')}`
+            ? `${birthYear}-${String(birthMonth).padStart(2, '0')}-${String(birthDay).padStart(2, '0')}`
             : null;
 
         await upsertStudent({
@@ -222,18 +222,17 @@ export default function StudentOnboardingPage() {
         });
       }
 
-      // ★ 最終ステップ（利用規約）のときは同意チェックを必須にする
+      // ★ 最終ステップ（利用規約）は必須チェック
       if (step === STEPS.length - 1) {
         if (!agreedTerms) {
           alert('本サービスの利用には利用規約への同意が必要です。');
           return;
         }
-        // チェック済みなら完了
         router.replace('/student/dashboard');
         return;
       }
 
-      // ★ それ以外のステップは従来通り次へ
+      // ★ それ以外は次へ
       if (step < STEPS.length - 1) {
         setStep((s) => s + 1);
       }
@@ -241,6 +240,9 @@ export default function StudentOnboardingPage() {
       alert(`保存に失敗しました：${e?.message ?? 'unknown error'}`);
     }
   };
+
+  const isLastStep = step === STEPS.length - 1;
+  const canComplete = !isLastStep || agreedTerms;
 
   if (loading) {
     return (
@@ -252,15 +254,21 @@ export default function StudentOnboardingPage() {
 
   return (
     <main className="max-w-3xl mx-auto px-6 py-8">
-      {/* ヘッダー */}
+      {/* ヘッダー（ロゴ差し替え） */}
       <div className="text-center mb-6">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-primary-500 text-white rounded-2xl text-xl font-bold">
-          学
+        <div className="flex flex-col items-center gap-2">
+          <Image
+            src="/brand/regimatch-logo.svg"
+            alt="レジマッチ"
+            width={180}
+            height={60}
+            priority
+            className="h-12 w-auto"
+          />
+          <p className="text-sm text-gray-500">
+            プロフィールを完成させて、最適な病院を見つけましょう
+          </p>
         </div>
-        <h1 className="mt-3 text-2xl font-bold text-primary-700">医志マッチ</h1>
-        <p className="text-sm text-gray-500">
-          プロフィールを完成させて、最適な病院を見つけましょう
-        </p>
       </div>
 
       {/* ステップ/進捗 */}
@@ -281,10 +289,7 @@ export default function StudentOnboardingPage() {
         </div>
         <div className="mt-3 flex justify-between text-xs text-gray-600">
           {STEPS.map((t, i) => (
-            <span
-              key={t}
-              className={i === step ? 'text-primary-600 font-semibold' : ''}
-            >
+            <span key={t} className={i === step ? 'text-primary-600 font-semibold' : ''}>
               {t}
             </span>
           ))}
@@ -302,55 +307,25 @@ export default function StudentOnboardingPage() {
               <Field label="セイ" value={lastKana} onChange={setLastKana} />
               <Field label="メイ" value={firstKana} onChange={setFirstKana} />
 
-              <SelectField
-                label="性別"
-                value={gender}
-                onChange={(v) => setGender(v as Gender)}
-              >
+              <SelectField label="性別" value={gender} onChange={(v) => setGender(v as Gender)}>
                 <option value="">選択してください</option>
                 {(['男性', '女性', 'その他'] as Gender[]).map((g) => (
-                  <option key={g} value={g}>
-                    {g}
-                  </option>
+                  <option key={g} value={g}>{g}</option>
                 ))}
               </SelectField>
 
               <div className="grid grid-cols-3 gap-2">
-                <SelectField
-                  label="生年"
-                  value={birthYear}
-                  onChange={(v) => setBirthYear(Number(v) || '')}
-                >
+                <SelectField label="生年" value={birthYear} onChange={(v) => setBirthYear(Number(v) || '')}>
                   <option value="">年</option>
-                  {BIRTH_YEARS.map((y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  ))}
+                  {BIRTH_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
                 </SelectField>
-                <SelectField
-                  label="月"
-                  value={birthMonth}
-                  onChange={(v) => setBirthMonth(Number(v) || '')}
-                >
+                <SelectField label="月" value={birthMonth} onChange={(v) => setBirthMonth(Number(v) || '')}>
                   <option value="">月</option>
-                  {BIRTH_MONTHS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
+                  {BIRTH_MONTHS.map((m) => <option key={m} value={m}>{m}</option>)}
                 </SelectField>
-                <SelectField
-                  label="日"
-                  value={birthDay}
-                  onChange={(v) => setBirthDay(Number(v) || '')}
-                >
+                <SelectField label="日" value={birthDay} onChange={(v) => setBirthDay(Number(v) || '')}>
                   <option value="">日</option>
-                  {BIRTH_DAYS.map((d) => (
-                    <option key={d} value={d}>
-                      {d}
-                    </option>
-                  ))}
+                  {BIRTH_DAYS.map((d) => <option key={d} value={d}>{d}</option>)}
                 </SelectField>
               </div>
 
@@ -365,17 +340,9 @@ export default function StudentOnboardingPage() {
             <TwoCols>
               <Field label="大学" value={university} onChange={setUniversity} />
               <Field label="学部" value={faculty} onChange={setFaculty} />
-              <SelectField
-                label="卒業年度"
-                value={gradYear}
-                onChange={(v) => setGradYear(Number(v) || '')}
-              >
+              <SelectField label="卒業年度" value={gradYear} onChange={(v) => setGradYear(Number(v) || '')}>
                 <option value="">選択してください</option>
-                {GRAD_YEARS.map((y) => (
-                  <option key={y} value={y}>
-                    {y}
-                  </option>
-                ))}
+                {GRAD_YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
               </SelectField>
             </TwoCols>
           </>
@@ -385,12 +352,7 @@ export default function StudentOnboardingPage() {
           <>
             <h2 className="font-semibold text-primary-700">連絡先</h2>
             <TwoCols>
-              <Field
-                label="電話番号"
-                value={phone}
-                onChange={setPhone}
-                placeholder="090-xxxx-xxxx"
-              />
+              <Field label="電話番号" value={phone} onChange={setPhone} placeholder="090-xxxx-xxxx" />
               <ReadOnly label="メール" value={email} />
             </TwoCols>
           </>
@@ -400,41 +362,20 @@ export default function StudentOnboardingPage() {
           <>
             <h2 className="font-semibold text-primary-700">希望条件</h2>
             <TwoCols>
-              <Field
-                label="希望エリア"
-                value={prefArea}
-                onChange={(v) => setPrefArea(v as Prefecture)}
-                placeholder="例：東京都 など"
-              />
-              <SelectField
-                label="当直回数"
-                value={dutyPref}
-                onChange={(v) => setDutyPref(v as DutyPref)}
-              >
+              <Field label="希望エリア" value={prefArea} onChange={(v) => setPrefArea(v as Prefecture)} placeholder="例：東京都 など" />
+              <SelectField label="当直回数" value={dutyPref} onChange={(v) => setDutyPref(v as DutyPref)}>
                 <option value="">選択してください</option>
-                {DUTY_OPTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
+                {DUTY_OPTS.map((d) => <option key={d} value={d}>{d}</option>)}
               </SelectField>
-              <SelectField
-                label="最低希望年収"
-                value={salaryBand}
-                onChange={(v) => setSalaryBand(v as SalaryBand)}
-              >
+              <SelectField label="最低希望年収" value={salaryBand} onChange={(v) => setSalaryBand(v as SalaryBand)}>
                 <option value="">選択してください</option>
-                {SALARY_BANDS.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
+                {SALARY_BANDS.map((b) => <option key={b} value={b}>{b}</option>)}
               </SelectField>
             </TwoCols>
           </>
         )}
 
-        {/* ★ 新ステップ：利用規約 */}
+        {/* 利用規約 */}
         {step === 4 && (
           <>
             <h2 className="font-semibold text-primary-700">利用規約への同意</h2>
@@ -443,8 +384,8 @@ export default function StudentOnboardingPage() {
             </p>
 
             <div className="border rounded-lg max-h-72 overflow-y-auto p-3 text-[11px] leading-relaxed whitespace-pre-wrap bg-slate-50">
-              {/* ここに利用規約全文を表示（テキストのみ） */}
-              {`# レジマッチ利用規約（株式会社OpenYouth）
+              {/* ★ 利用規約は後で差し替えOK */}
+              {`レジマッチ利用規約（株式会社OpenYouth）
 
 
 第1条（目的および適用）
@@ -607,13 +548,16 @@ export default function StudentOnboardingPage() {
                 onChange={(e) => setAgreedTerms(e.target.checked)}
                 className="h-4 w-4 accent-primary-500"
               />
-              <label
-                htmlFor="agree-terms"
-                className="text-xs text-slate-700"
-              >
-                上記「レジマッチ利用規約」を確認し、内容に同意します。
+              <label htmlFor="agree-terms" className="text-xs text-slate-700">
+                上記「利用規約」を確認し、内容に同意します。
               </label>
             </div>
+
+            {!agreedTerms && (
+              <p className="text-xs text-orange-700 mt-1">
+                ※ 完了するには利用規約への同意が必要です
+              </p>
+            )}
           </>
         )}
 
@@ -628,8 +572,7 @@ export default function StudentOnboardingPage() {
           </button>
 
           <div className="text-xs text-gray-400">
-            {/* ★ 利用規約ステップでは「後で設定する」を無効化してもよい */}
-            {step === STEPS.length - 1 ? (
+            {isLastStep ? (
               <span>利用規約への同意が必要です</span>
             ) : (
               <a href="/student/dashboard" className="hover:underline">
@@ -639,8 +582,12 @@ export default function StudentOnboardingPage() {
           </div>
 
           <button
-            className="px-4 py-2 text-sm rounded bg-primary-600 text-white hover:bg-primary-700"
+            className={`px-4 py-2 text-sm rounded text-white ${
+              canComplete ? 'bg-primary-600 hover:bg-primary-700' : 'bg-gray-300 cursor-not-allowed'
+            }`}
             onClick={onSaveStep}
+            disabled={!canComplete}
+            title={!canComplete ? '利用規約への同意が必要です' : undefined}
           >
             {step < STEPS.length - 1 ? '次へ ›' : '完了する'}
           </button>
@@ -654,6 +601,7 @@ export default function StudentOnboardingPage() {
 function TwoCols({ children }: { children: React.ReactNode }) {
   return <div className="grid md:grid-cols-2 gap-4">{children}</div>;
 }
+
 function Field({
   label,
   value,
@@ -677,6 +625,7 @@ function Field({
     </div>
   );
 }
+
 function SelectField({
   label,
   value,
@@ -701,6 +650,7 @@ function SelectField({
     </div>
   );
 }
+
 function ReadOnly({ label, value }: { label: string; value: string }) {
   return (
     <div>

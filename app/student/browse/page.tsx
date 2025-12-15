@@ -213,7 +213,7 @@ export default function StudentHospitalSearchPage() {
       <div className="space-y-1">
         <h1 className="text-xl md:text-2xl font-bold">病院を探す</h1>
         <p className="text-sm text-gray-600">
-          病院名の部分一致 + 都道府県 / 救急区分 / 年収帯 / 当直回数（AND）。詳細条件で病床数・家賃手当も絞り込めます。
+          病院名 / 都道府県 / 救急区分 / 年収帯 / 当直回数等、詳細条件で絞り込めます。
         </p>
       </div>
 

@@ -436,7 +436,7 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                  className="min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                 >
                   <div className="rounded-2xl bg-white flex flex-col h-full">
                     <div className="px-4 pt-3 flex justify-between items-center">
@@ -489,7 +489,7 @@ export default function StudentDashboard() {
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                    className="min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                   >
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
                       <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">

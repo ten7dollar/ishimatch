@@ -374,6 +374,10 @@ export default function StudentOnboardingPage() {
             </TwoCols>
           </>
         )}
+<div className="mt-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-600">
+  ※掲載している病院情報は当社の独自調査に基づく参考情報です。利用はユーザーの自己責任とし、
+  最新情報は必ず病院公式サイト等でご確認ください。
+</div>
 
         {/* 利用規約 */}
         {step === 4 && (

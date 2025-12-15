@@ -22,31 +22,23 @@ type HospitalRow = {
 type HeroMap = Record<string, string | null>;
 
 const formatSalary = (max: number | null, min?: number | null) => {
-  // min / max ともに数値じゃない場合
-  if (max == null && (min == null || Number.isNaN(min))) {
-    return "—";
-  }
+  if (max == null && (min == null || Number.isNaN(min))) return "—";
 
-  // min と max 両方ある場合
   if (min != null && !Number.isNaN(min) && max != null && !Number.isNaN(max)) {
-    // 幅があるときだけレンジ表示
     if (min !== max) {
       const minStr = min.toLocaleString("ja-JP");
       const maxStr = max.toLocaleString("ja-JP");
       return `${minStr}〜${maxStr}万円 / 年`;
     }
-    // 同じなら単一表示
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
-  // max だけ分かる場合
   if (max != null && !Number.isNaN(max)) {
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
-  // min だけ分かる場合（保険）
   if (min != null && !Number.isNaN(min)) {
     const v = min.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
@@ -73,9 +65,7 @@ export default function StudentDashboard() {
 
   const refreshUnread = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setUnreadCount(0);
         return;
@@ -91,8 +81,7 @@ export default function StudentDashboard() {
       }
 
       const rows = (data ?? []) as { id: string; read_at: string | null }[];
-      const unread = rows.filter((r) => !r.read_at).length;
-      setUnreadCount(unread);
+      setUnreadCount(rows.filter((r) => !r.read_at).length);
     } catch (e: any) {
       console.error("[dashboard] unread scouts unexpected error:", e?.message || e);
     }
@@ -102,27 +91,18 @@ export default function StudentDashboard() {
     refreshUnread();
     let ch: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       ch = supabase
         .channel(`student-scouts:dashboard:${user.id}`)
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "scout_invitations",
-            filter: `student_id=eq.${user.id}`,
-          },
+          { event: "*", schema: "public", table: "scout_invitations", filter: `student_id=eq.${user.id}` },
           () => refreshUnread()
         )
         .subscribe();
     })();
-    return () => {
-      if (ch) supabase.removeChannel(ch);
-    };
+    return () => { if (ch) supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -341,7 +321,6 @@ export default function StudentDashboard() {
 
       {/* 検索導線：本音検索 / 通常検索 */}
       <section className="grid md:grid-cols-2 gap-4 pt-2">
-        {/* 本音検索 */}
         <Link
           href="/student/honne"
           className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-sky-50 to-slate-50 hover:bg-primary-50/80 shadow-sm hover:shadow-md transition group"
@@ -370,7 +349,6 @@ export default function StudentDashboard() {
           </div>
         </Link>
 
-        {/* 通常検索 */}
         <Link
           href="/student/browse"
           className="rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm hover:shadow-md transition group"
@@ -399,15 +377,14 @@ export default function StudentDashboard() {
 
       {/* 初年度年収ランキング */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary-600" />
-            <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
-          </div>
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-6 h-6 text-primary-600" />
+          <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
         </div>
 
+        {/* ★ スマホでも固定幅カードで横スクロール（ここだけ調整） */}
         <div className="overflow-x-auto pb-2">
-          <div className="flex gap-4 min-w-full">
+          <div className="flex gap-4 min-w-full snap-x snap-mandatory">
             {rankingLoading && ranking.length === 0 && (
               <p className="text-sm text-text-muted px-1">読み込み中…</p>
             )}
@@ -436,7 +413,7 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                  className="min-w-[260px] max-w-[320px] flex-shrink-0 snap-start"
                 >
                   <div className="rounded-2xl bg-white flex flex-col h-full">
                     <div className="px-4 pt-3 flex justify-between items-center">
@@ -473,8 +450,9 @@ export default function StudentDashboard() {
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
+        {/* ★ ここも同じく固定幅カードで横スクロール（ここだけ調整） */}
         <div className="overflow-x-auto pb-2">
-          <div className="flex gap-4 min-w-full">
+          <div className="flex gap-4 min-w-full snap-x snap-mandatory">
             {recommended.length === 0 ? (
               <p className="text-sm text-text-muted px-1">
                 おすすめを表示できる病院データがまだありません。
@@ -489,14 +467,14 @@ export default function StudentDashboard() {
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    className="min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                    className="min-w-[260px] max-w-[320px] flex-shrink-0 snap-start"
                   >
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
-                      <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
+                      <div className="w-full h-28 mt-2 rounded-t-2xl overflow-hidden">
                         {recommendedHeroMap[h.id] ? (
                           <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                         ) : (
-                          <Image src={hero} alt={h.name} width={400} height={96} className="w-full h-full object-cover" />
+                          <Image src={hero} alt={h.name} width={400} height={112} className="w-full h-full object-cover" />
                         )}
                       </div>
 
@@ -518,7 +496,6 @@ export default function StudentDashboard() {
                           <span className="ml-1">{pr}</span>
                         </p>
 
-                        {/* グラフ削除後の余白を整える（下に少しだけスペーサー） */}
                         <div className="pt-2" />
                       </div>
                     </div>

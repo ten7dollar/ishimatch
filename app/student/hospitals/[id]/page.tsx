@@ -260,27 +260,33 @@ export default function StudentHospitalDetail() {
             )}
           </div>
 
-          {/* 右上アクション（既存） */}
-          <div className="flex gap-2 items-start">
-            {row.website_url && (
-              <a
-                href={row.website_url}
-                target="_blank"
-                rel="noreferrer"
-                className="px-3 py-1.5 rounded border text-xs md:text-sm hover:bg-gray-50"
-              >
-                公式サイト
-              </a>
-            )}
-            <Link
-              href="/student/saved"
-              className="px-3 py-1.5 rounded border text-xs md:text-sm hover:bg-gray-50"
-            >
-              検討リストを開く
-            </Link>
-            <FavButton hospitalId={row.id} />
-          </div>
-        </div>
+          {/* 右上アクション（スマホ最適化：折り返し＆見た目統一） */}
+<div className="flex flex-wrap items-start justify-end gap-2">
+  {row.website_url && (
+    <a
+      href={row.website_url}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center justify-center px-3 py-2 md:py-1.5 rounded border text-xs md:text-sm whitespace-nowrap hover:bg-gray-50 transition"
+    >
+      公式サイト
+    </a>
+  )}
+
+  <Link
+    href="/student/saved"
+    className="inline-flex items-center justify-center px-3 py-2 md:py-1.5 rounded border text-xs md:text-sm whitespace-nowrap hover:bg-gray-50 transition"
+  >
+    検討リスト
+  </Link>
+
+  {/* FavButton は中のボタンが他と揃うように最小の“見た目統一”だけ行う */}
+  <div className="inline-flex">
+    <FavButton hospitalId={row.id} />
+  </div>
+</div>
+</div>
+
 
         {/* 中段：画像＋本音テーブル */}
         <div className="flex flex-col md:flex-row gap-4 md:gap-6">
@@ -521,23 +527,24 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
   };
 
   return (
-    <button
-      onClick={toggle}
-      disabled={busy}
-      aria-label="検討に追加"
-      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition-colors ${
-        active
-          ? "bg-red-50 text-red-600 border-red-300"
-          : "hover:bg-gray-50 text-gray-700 border-gray-300"
-      } ${busy ? "opacity-60 cursor-not-allowed" : ""}`}
-      title={active ? "検討中（クリックで外す）" : "検討に追加"}
-    >
-      <Heart
-        className="w-4 h-4"
-        color={active ? "#ef4444" : "#666"}
-        fill={active ? "#ef4444" : "transparent"}
-      />
-      {active ? "検討中" : "検討に追加"}
-    </button>
+<button
+  type="button"
+  onClick={toggle}
+  disabled={busy}
+  aria-label="検討に追加"
+  className={`inline-flex items-center justify-center px-3 py-2 md:py-1.5 rounded border
+    text-xs md:text-sm whitespace-nowrap transition-colors touch-manipulation select-none
+    ${active ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50 text-gray-700 border-gray-300"}
+    ${busy ? "opacity-60 cursor-not-allowed" : "active:scale-[0.99]"}
+  `}
+  title={active ? "検討中（クリックで外す）" : "検討に追加"}
+>
+  <Heart
+    className="w-4 h-4"
+    color={active ? "#ef4444" : "#666"}
+    fill={active ? "#ef4444" : "transparent"}
+  />
+  {active ? "検討中" : "検討に追加"}
+</button>
   );
 }

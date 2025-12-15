@@ -303,7 +303,7 @@ export default function StudentHospitalDetail() {
 
           {/* 右：テーブル風の本音サマリ */}
           <div className="md:w-1/2 w-full rounded-xl bg-white border border-slate-100 text-sm">
-            <div className="divide-y divide-slate-100">
+            <dl className="divide-y divide-slate-100">
               <RowItem
                 label="初年度年収（目安）"
                 value={
@@ -351,7 +351,7 @@ export default function StudentHospitalDetail() {
                 label="マッチ倍率"
                 value={matchRatioText}
               />
-            </div>
+            </dl>
           </div>
         </div>
 
@@ -525,11 +525,11 @@ function FavButton({ hospitalId }: { hospitalId: string }) {
       onClick={toggle}
       disabled={busy}
       aria-label="検討に追加"
-      className={`px-3 py-2 md:py-1.5 rounded border flex items-center gap-1 transition-colors
-        text-xs md:text-sm whitespace-nowrap touch-manipulation select-none
-    ${active ? "bg-red-50 text-red-600 border-red-300" : "hover:bg-gray-50 text-gray-700 border-gray-300"}
-    ${busy ? "opacity-60 cursor-not-allowed" : "active:scale-[0.99]"}
-  `}
+      className={`px-3 py-1.5 rounded border text-sm flex items-center gap-1 transition-colors ${
+        active
+          ? "bg-red-50 text-red-600 border-red-300"
+          : "hover:bg-gray-50 text-gray-700 border-gray-300"
+      } ${busy ? "opacity-60 cursor-not-allowed" : ""}`}
       title={active ? "検討中（クリックで外す）" : "検討に追加"}
     >
       <Heart

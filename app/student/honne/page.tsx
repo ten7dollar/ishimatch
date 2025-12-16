@@ -237,6 +237,8 @@ export default function HonneSearchPage() {
         <h1 className="text-xl md:text-2xl font-bold">「本音」で探す研修先</h1>
         <p className="text-sm text-gray-600">
           年収 × 働き方のバランスで、あなたにフィットする病院を見つけましょう。
+          <br />
+          ※「当直手当・残業手当」の金額記載がない場合は、「賞与・その他」に含まれることがございます。
         </p>
       </header>
 

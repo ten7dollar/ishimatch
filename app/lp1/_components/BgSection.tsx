@@ -1,24 +1,36 @@
 import Image from "next/image";
 import { ReactNode } from "react";
 
+type OverlayStrength = "none" | "soft" | "medium" | "strong";
+
 type Props = {
   id?: string;
 
-  // PC/SPで背景画像を分ける
   pcSrc: string;
-  spSrc?: string; // なければ pcSrc を使う
+  spSrc?: string;
   alt?: string;
 
   children: ReactNode;
 
-  // 見た目調整
-  minHeightClassName?: string; // 例: "min-h-[70vh]"
-  overlayClassName?: string;   // 例: "bg-black/50"
-  contentClassName?: string;   // 例: "py-20"
+  minHeightClassName?: string;
+  contentClassName?: string;
 
-  // 任意（将来レイアウト反転などで使える）
-  reverse?: boolean;
+  overlayStrength?: OverlayStrength;
+  withSeparator?: boolean; // セクション間に帯（白背景）を入れる
 };
+
+function overlayClass(strength: OverlayStrength) {
+  switch (strength) {
+    case "none":
+      return "";
+    case "soft":
+      return "bg-black/10";
+    case "medium":
+      return "bg-black/22";
+    case "strong":
+      return "bg-black/40";
+  }
+}
 
 export function BgSection({
   id,
@@ -26,45 +38,44 @@ export function BgSection({
   spSrc,
   alt = "",
   children,
-  minHeightClassName = "min-h-[60vh]",
-  overlayClassName = "bg-black/55",
+  minHeightClassName = "min-h-[70vh]",
   contentClassName = "py-16 md:py-24",
-  reverse = false,
+  overlayStrength = "none",
+  withSeparator = true,
 }: Props) {
   const mobileSrc = spSrc ?? pcSrc;
+  const ov = overlayClass(overlayStrength);
 
   return (
-    <section
-      id={id}
-      className={`relative overflow-hidden ${minHeightClassName}`}
-      data-reverse={reverse ? "true" : "false"}
-    >
-      {/* SP背景 */}
-      <Image
-        src={mobileSrc}
-        alt={alt}
-        fill
-        priority={id === "hero"}
-        className="object-cover md:hidden"
-      />
+    <section id={id} className="bg-white">
+      <div className={`relative overflow-hidden ${minHeightClassName}`}>
+        {/* Background image (SP/PC) */}
+        <Image
+          src={mobileSrc}
+          alt={alt}
+          fill
+          priority={id === "hero"}
+          className="object-cover md:hidden"
+        />
+        <Image
+          src={pcSrc}
+          alt={alt}
+          fill
+          priority={id === "hero"}
+          className="hidden object-cover md:block"
+        />
 
-      {/* PC背景 */}
-      <Image
-        src={pcSrc}
-        alt={alt}
-        fill
-        priority={id === "hero"}
-        className="hidden object-cover md:block"
-      />
+        {/* Optional overlay (薄く) */}
+        {ov ? <div className={`absolute inset-0 ${ov}`} /> : null}
 
-      {/* Overlay */}
-      <div className={`absolute inset-0 ${overlayClassName}`} />
-      <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/35 to-black/55" />
-
-      {/* Content */}
-      <div className={`relative ${contentClassName}`}>
-        <div className="mx-auto w-full max-w-6xl px-4">{children}</div>
+        {/* Content */}
+        <div className={`relative ${contentClassName}`}>
+          <div className="mx-auto w-full max-w-6xl px-4">{children}</div>
+        </div>
       </div>
+
+      {/* Separator band */}
+      {withSeparator ? <div className="h-10 bg-white md:h-14" /> : null}
     </section>
   );
 }

@@ -48,7 +48,7 @@ export default function Lp1Page() {
               マッチング。
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-slate-700 md:text-base">
-              給与・当直・教育体制などの公開情報を整理し、比較から検討までを一気通貫で。
+              給与・当直・教育体制等の情報を整理し、比較から申し込みまでを一気通貫で。
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
@@ -56,7 +56,7 @@ export default function Lp1Page() {
                 href={SIGNUP_URL}
                 className="rounded-xl bg-orange-500 px-7 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
               >
-                無料で診断する →
+                無料で登録する →
               </Link>
               <Link
                 href="#worry"
@@ -84,7 +84,7 @@ export default function Lp1Page() {
               href={SIGNUP_URL}
               className="rounded-xl bg-orange-500 px-8 py-4 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
             >
-              無料で診断する →
+              無料で登録する →
             </Link>
           </div>
         </div>
@@ -109,17 +109,19 @@ export default function Lp1Page() {
         <div className="pl-2 md:pl-0">
           <div className="max-w-2xl text-white">
             <h3 className="text-2xl font-extrabold leading-snug md:text-3xl">
-              病院によって待遇・働き方の記載方法がまちまち。
+              病院によって
               <br />
-              実際の働き方がイメージできない。
+              待遇・働き方の記載がまちまち。
+              <br />
+              働き方がイメージできない。
               <br />
               こんなお悩みありませんか？
             </h3>
 
             <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-base">
-              <li>・面談が多いけど当直回数や実態が多い</li>
+              <li>・額面が高いけど当直回数や残業が多い</li>
               <li>・当直料が安いのに回数が多い</li>
-              <li>・詳しいOBに面談してメロついてしまわない</li>
+              <li>・詳細は先輩に聞くか口コミでしか知れない</li>
             </ul>
           </div>
         </div>
@@ -134,7 +136,7 @@ export default function Lp1Page() {
             Resimatchなら、検索・応募・スカウトまでワンストップで完結。
           </p>
           <h2 className="mt-3 text-3xl font-extrabold text-slate-900 md:text-4xl">
-            Resimatchなら
+            Resimatchの機能
           </h2>
 
           <div className="mt-8 grid gap-4 md:grid-cols-3">
@@ -244,7 +246,7 @@ export default function Lp1Page() {
                 学生最後の一年、今すぐ理想の研修先のために行動したい。
               </p>
               <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
-                Resimatchで頑張らずに
+                Resimatchで
                 <br />
                 キャリア・遊び・勉強を掴り取る。
               </h2>
@@ -320,7 +322,7 @@ export default function Lp1Page() {
       >
         <div className="flex min-h-[60vh] items-center justify-center">
           {/* SPはより下、PCは現状維持 */}
-          <div className="translate-y-16 md:translate-y-14">
+          <div className="translate-y-18 md:translate-y-14">
             <Link
               href={SIGNUP_URL}
               className="inline-flex rounded-xl bg-orange-500 px-10 py-5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"

@@ -89,6 +89,27 @@ const formatTotalIncomePretty = (h: HonneHospital): string => {
   return `${total.toLocaleString("ja-JP")}万円`;
 };
 
+/**
+ * ★ 追加（今回の要件）
+ * 月平均労働時間は「初年度年収（目安）÷ 推定時給」から逆算して表示する。
+ * - totalIncomeMan(万円) * 10,000円 / hourly(円/h) = 年間労働時間(h)
+ * - 年間 / 12 = 月平均労働時間(h)
+ */
+const computeMonthlyWorkHoursFromIncomeAndHourly = (h: HonneHospital): number | null => {
+  const totalMan = computeTotalIncome(h);
+  const hourly = computeHourlyWage(h);
+
+  if (totalMan == null || totalMan <= 0) return null;
+  if (hourly == null || hourly <= 0) return null;
+
+  const annualYen = totalMan * 10_000;
+  const annualHours = annualYen / hourly;
+  const monthlyHours = annualHours / 12;
+
+  if (!Number.isFinite(monthlyHours) || monthlyHours <= 0) return null;
+  return Math.round(monthlyHours);
+};
+
 /* =======================
    ページ本体
 ======================= */
@@ -364,9 +385,12 @@ export default function HonneSearchPage() {
             const allowanceSum = (dutyAll ?? 0) + (overAll ?? 0) + (bonus ?? 0);
 
             const hourly = computeHourlyWage(h);
-            const ot = h.avg_overtime_hours_per_month ?? null;
+
+            // ★ 今回の要件：月平均労働時間は「年収×推定時給」から逆算
+            const monthlyWorkHours = computeMonthlyWorkHoursFromIncomeAndHourly(h);
+
+            // ★ 月平均残業はβでは使わない（枠も削除する）
             const duty = h.avg_duty_shifts_per_month ?? null;
-            const workHours = h.avg_total_work_hours_per_month ?? null;
 
             const totalRatio =
               totalIncome && totalIncome > 0
@@ -524,19 +548,15 @@ export default function HonneSearchPage() {
                   </div>
                 </div>
 
-                {/* 数字サマリ：ミニカード4枚 */}
-                <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                {/* 数字サマリ：★ 3枚にする（残業カード削除） */}
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                   <MiniStatCard
                     label="月平均労働時間"
                     value={
-                      workHours != null
-                        ? `${workHours.toLocaleString("ja-JP")}h`
+                      monthlyWorkHours != null
+                        ? `${monthlyWorkHours.toLocaleString("ja-JP")}h`
                         : "—"
                     }
-                  />
-                  <MiniStatCard
-                    label="月平均残業"
-                    value={ot != null ? `${ot.toLocaleString("ja-JP")}h` : "—"}
                   />
                   <MiniStatCard
                     label="月当直回数"

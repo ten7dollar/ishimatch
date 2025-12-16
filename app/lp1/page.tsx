@@ -120,9 +120,9 @@ export default function Lp1Page() {
   position="center"
   scaleClassName="scale-100"
 >
-  {/* relative にして、下部メッセージだけ絶対配置 */}
-  <div className="relative pl-2 md:pl-0">
-    {/* 上のコンテンツは「今の位置のまま」 */}
+  {/* ここが重要：セクションと同じ高さを持つコンテナにする */}
+  <div className="pl-2 md:pl-0 min-h-[72vh] flex flex-col">
+    {/* 上の文章：今の位置を基本維持 */}
     <div className="max-w-2xl text-white">
       <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
         病院によって
@@ -141,9 +141,10 @@ export default function Lp1Page() {
       </ul>
     </div>
 
-    {/* 下部固定メッセージ（これだけ下に固定） */}
-    <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center md:bottom-10">
-      <p className="max-w-[92%] text-center text-base font-extrabold leading-relaxed text-orange-200 drop-shadow md:max-w-3xl md:text-xl">
+    {/* 下部に押し下げる（これで確実に下に行く） */}
+    <div className="mt-auto pb-8 md:pb-12 flex justify-center">
+      <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed text-orange-200 drop-shadow
+                    text-base md:text-xl">
         待遇と経験両方重視したいのにあまりにも時間と手間がかかる。
         <br />
         <span className="text-orange-300">
@@ -151,9 +152,6 @@ export default function Lp1Page() {
         </span>
       </p>
     </div>
-
-    {/* 下部メッセージ分の“余白”を確保（重なり防止） */}
-    <div className="h-24 md:h-28" />
   </div>
 </BgSection>
 

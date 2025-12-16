@@ -22,31 +22,23 @@ type HospitalRow = {
 type HeroMap = Record<string, string | null>;
 
 const formatSalary = (max: number | null, min?: number | null) => {
-  // min / max ともに数値じゃない場合
-  if (max == null && (min == null || Number.isNaN(min))) {
-    return "—";
-  }
+  if (max == null && (min == null || Number.isNaN(min))) return "—";
 
-  // min と max 両方ある場合
   if (min != null && !Number.isNaN(min) && max != null && !Number.isNaN(max)) {
-    // 幅があるときだけレンジ表示
     if (min !== max) {
       const minStr = min.toLocaleString("ja-JP");
       const maxStr = max.toLocaleString("ja-JP");
       return `${minStr}〜${maxStr}万円 / 年`;
     }
-    // 同じなら単一表示
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
-  // max だけ分かる場合
   if (max != null && !Number.isNaN(max)) {
     const v = max.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
   }
 
-  // min だけ分かる場合（保険）
   if (min != null && !Number.isNaN(min)) {
     const v = min.toLocaleString("ja-JP");
     return `${v}万円 / 年`;
@@ -73,9 +65,7 @@ export default function StudentDashboard() {
 
   const refreshUnread = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         setUnreadCount(0);
         return;
@@ -102,27 +92,18 @@ export default function StudentDashboard() {
     refreshUnread();
     let ch: ReturnType<typeof supabase.channel> | null = null;
     (async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       ch = supabase
         .channel(`student-scouts:dashboard:${user.id}`)
         .on(
           "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "scout_invitations",
-            filter: `student_id=eq.${user.id}`,
-          },
+          { event: "*", schema: "public", table: "scout_invitations", filter: `student_id=eq.${user.id}` },
           () => refreshUnread()
         )
         .subscribe();
     })();
-    return () => {
-      if (ch) supabase.removeChannel(ch);
-    };
+    return () => { if (ch) supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -436,8 +417,8 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  // ★ ここだけ変更：スマホでカードが横長にならない幅にする（PC側は維持）
-                  className="w-[78vw] min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                  // ★ ここが本質：blockにして width/min/max を効かせる（スマホだけカード幅を制御）
+                  className="block w-[78vw] min-w-[260px] max-w-[320px] flex-shrink-0 md:w-auto md:min-w-[260px] md:max-w-[320px]"
                 >
                   <div className="rounded-2xl bg-white flex flex-col h-full">
                     <div className="px-4 pt-3 flex justify-between items-center">
@@ -490,8 +471,8 @@ export default function StudentDashboard() {
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    // ★ ここだけ変更：スマホでカードが横長にならない幅にする（PC側は維持）
-                    className="w-[78vw] min-w-[260px] max-w-[320px] md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
+                    // ★ 同じく block を付ける（inlineだと幅が効かない）
+                    className="block w-[78vw] min-w-[260px] max-w-[320px] flex-shrink-0 md:w-auto md:min-w-[260px] md:max-w-[320px]"
                   >
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
                       <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">

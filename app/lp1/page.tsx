@@ -8,19 +8,24 @@ const IMG = {
   hero: { pc: "/lp1/hero_pc.jpg", sp: "/lp1/hero_sp.jpg" },
   worry: { pc: "/lp1/worry_pc.jpg", sp: "/lp1/worry_sp.jpg" },
   solve: { pc: "/lp1/solve_pc.jpg", sp: "/lp1/solve_sp.jpg" },
-  screen: { pc: "/lp1/screen_pc.jpg", sp: "/lp1/screen_sp.jpg" },
   beforeAfter: { pc: "/lp1/beforeafter_pc.jpg", sp: "/lp1/beforeafter_sp.jpg" },
   closing: { pc: "/lp1/closing_pc.jpg", sp: "/lp1/closing_sp.jpg" },
   finalCta: { pc: "/lp1/finalcta_pc.jpg", sp: "/lp1/finalcta_sp.jpg" },
 };
 
-// ⑤：追加のプロダクトスクショ（任意）
-const PRODUCT_SCREENSHOTS: string[] = [];
+// ⑤：プロダクトスクショ（3枚）
+const PRODUCT_SCREENSHOTS: string[] = [
+  "/lp1/product/screen1.png",
+  "/lp1/product/screen2.png",
+  "/lp1/product/screen3.png",
+];
 
 export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
-      {/* ① Hero：画像内テキスト（背景なし） */}
+      {/* =====================
+          ① Hero：画像内テキスト（背景なし）
+         ===================== */}
       <BgSection
         id="hero"
         pcSrc={IMG.hero.pc}
@@ -64,7 +69,9 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* ② CTA（白帯：縦余白を少し詰める） */}
+      {/* =====================
+          ② CTA（白帯：縦余白やや詰め）
+         ===================== */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 py-8 text-center md:py-9">
           <h2 className="text-xl font-extrabold md:text-2xl">
@@ -84,7 +91,9 @@ export default function Lp1Page() {
         <div className="h-10 bg-white md:h-14" />
       </section>
 
-      {/* ③ お悩み：画像内テキスト（背景なし） */}
+      {/* =====================
+          ③ お悩み：画像内テキスト（背景なし）
+         ===================== */}
       <BgSection
         id="worry"
         pcSrc={IMG.worry.pc}
@@ -116,7 +125,9 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* ④ 解決：テキストは画像外（上） + 画像（常に全体表示＝contain） */}
+      {/* =====================
+          ④ 解決：テキスト外 + 画像（contain）
+         ===================== */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <p className="text-sm font-semibold text-slate-600">
@@ -158,49 +169,28 @@ export default function Lp1Page() {
         </BgSection>
       </section>
 
-{/* =====================
-    ⑤ 実際の画面：テキスト外 + スクショ横スクロール + 下に画像（contain）
-   ===================== */}
-<section className="bg-white">
-  <div className="mx-auto max-w-6xl px-4 pt-14 pb-6">
-    <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
-      実際の画面
-    </h2>
-    <p className="mt-2 text-sm text-slate-600">
-      年収・当直・教育体制など、比較に必要な情報を同じ見方で整理。
-    </p>
+      {/* =====================
+          ⑤ 実際の画面：スクショ横スクロールのみ（背景画像セクションは削除）
+         ===================== */}
+      <section id="screenshots" className="bg-white">
+        <div className="mx-auto max-w-6xl px-4 pt-14 pb-12 md:pb-16">
+          <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
+            実際の画面
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">
+            年収・当直・教育体制など、比較に必要な情報を同じ見方で整理。
+          </p>
 
-    {/* スクショはここに必ず出す */}
-    <div className="mt-6">
-      <ScreenCarousel
-        images={[
-          "/lp1/product/screen1.png",
-          "/lp1/product/screen2.png",
-          "/lp1/product/screen3.png",
-        ]}
-      />
-    </div>
-  </div>
+          <div className="mt-6">
+            <ScreenCarousel images={PRODUCT_SCREENSHOTS} />
+          </div>
+        </div>
+        <div className="h-10 bg-white md:h-14" />
+      </section>
 
-  <BgSection
-    id="screen"
-    pcSrc={IMG.screen.pc}
-    spSrc={IMG.screen.sp}
-    alt="Screen"
-    minHeightClassName="min-h-[56vh]"
-    overlayStrength="none"
-    withSeparator={true}
-    contentClassName="py-10 md:py-14"
-    fit="contain"
-    position="center"
-    bgClassName="bg-white"
-    scaleClassName="scale-100"
-  >
-    <div />
-  </BgSection>
-</section>
-
-      {/* ⑥ Before→After：テキスト外 + 画像（contain） */}
+      {/* =====================
+          ⑥ Before→After：テキスト外 + 画像（contain）
+         ===================== */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
@@ -229,45 +219,53 @@ export default function Lp1Page() {
         </BgSection>
       </section>
 
-      {/* ⑦ クロージング：画像内テキスト */}
-<BgSection
-  id="closing"
-  pcSrc={IMG.closing.pc}
-  spSrc={IMG.closing.sp}
-  alt="Closing"
-  minHeightClassName="min-h-[70vh]"
-  overlayStrength="soft"
-  withSeparator={true}
-  fit="cover"
-  position="center"
-  scaleClassName="scale-100"
->
-  <div className="pl-2 md:pl-0">
-    <div className="max-w-3xl text-white">
-      <p className="text-sm font-semibold text-white/90">
-        学生最後の一年、今すぐ理想の研修先のために行動したい。
-      </p>
-      <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
-        Resimatchで頑張らずに
-        <br />
-        キャリア・遊び・勉強を掴り取る。
-      </h2>
+      {/* =====================
+          ⑦ クロージング：画像内テキスト
+          - SP：テキストを上に寄せる / CTAボタン削除
+          - PC：CTAボタンあり（維持）
+         ===================== */}
+      <BgSection
+        id="closing"
+        pcSrc={IMG.closing.pc}
+        spSrc={IMG.closing.sp}
+        alt="Closing"
+        minHeightClassName="min-h-[70vh]"
+        overlayStrength="soft"
+        withSeparator={true}
+        fit="cover"
+        position="center"
+        scaleClassName="scale-100"
+      >
+        {/* SPは上寄せ、PCは中央寄せ */}
+        <div className="pl-2 md:pl-0">
+          <div className="flex min-h-[70vh] items-start pt-10 md:min-h-0 md:items-center md:pt-0">
+            <div className="max-w-3xl text-white">
+              <p className="text-sm font-semibold text-white/90">
+                学生最後の一年、今すぐ理想の研修先のために行動したい。
+              </p>
+              <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
+                Resimatchで頑張らずに
+                <br />
+                キャリア・遊び・勉強を掴り取る。
+              </h2>
 
-      {/* CTA：SPは中央寄せで下に、PCは今のまま左に */}
-      <div className="mt-6 flex justify-center md:justify-start">
-        <Link
-          href={SIGNUP_URL}
-          className="inline-flex rounded-xl bg-orange-500 px-9 py-4 text-base font-semibold text-white shadow-sm hover:bg-orange-600
-                     md:px-10 md:py-5"
-        >
-          無料で診断する →
-        </Link>
-      </div>
-    </div>
-  </div>
-</BgSection>
+              {/* PCのみCTA（SPは削除） */}
+              <div className="mt-6 hidden md:flex">
+                <Link
+                  href={SIGNUP_URL}
+                  className="inline-flex rounded-xl bg-orange-500 px-10 py-5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
+                >
+                  無料で診断する →
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </BgSection>
 
-      {/* ⑧ QA：画像なし */}
+      {/* =====================
+          ⑧ QA：画像なし
+         ===================== */}
       <section id="qa" className="bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
           <div className="inline-flex rounded-2xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white">
@@ -303,32 +301,35 @@ export default function Lp1Page() {
         </div>
       </section>
 
-      {/* ⑨ FinalCTA：画像上にボタンだけ */}
-<BgSection
-  id="final"
-  pcSrc={IMG.finalCta.pc}
-  spSrc={IMG.finalCta.sp}
-  alt="Final CTA"
-  minHeightClassName="min-h-[60vh]"
-  overlayStrength="none"
-  withSeparator={false}
-  fit="cover"
-  position="center"
-  scaleClassName="scale-100"
->
-  <div className="flex min-h-[60vh] items-center justify-center">
-    {/* SPは控えめ、PCは今まで通り下へ */}
-    <div className="translate-y-4 md:translate-y-14">
-      <Link
-        href={SIGNUP_URL}
-        className="inline-flex rounded-xl bg-orange-500 px-9 py-4 text-base font-semibold text-white shadow-sm hover:bg-orange-600
-                   md:px-10 md:py-5"
+      {/* =====================
+          ⑨ FinalCTA：画像上にボタンだけ
+          - SP：ボタンをさらに下へ
+          - PC：今まで通り（下寄せ維持）
+         ===================== */}
+      <BgSection
+        id="final"
+        pcSrc={IMG.finalCta.pc}
+        spSrc={IMG.finalCta.sp}
+        alt="Final CTA"
+        minHeightClassName="min-h-[60vh]"
+        overlayStrength="none"
+        withSeparator={false}
+        fit="cover"
+        position="center"
+        scaleClassName="scale-100"
       >
-        無料で診断する →
-      </Link>
-    </div>
-  </div>
-</BgSection>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          {/* SPはより下、PCは現状維持 */}
+          <div className="translate-y-16 md:translate-y-14">
+            <Link
+              href={SIGNUP_URL}
+              className="inline-flex rounded-xl bg-orange-500 px-10 py-5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
+            >
+              無料で診断する →
+            </Link>
+          </div>
+        </div>
+      </BgSection>
     </main>
   );
 }

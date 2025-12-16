@@ -142,13 +142,13 @@ export default function Lp1Page() {
     </div>
 
     {/* 下部に押し下げる（これで確実に下に行く） */}
-    <div className="mt-auto pb-8 md:pb-12 flex justify-center">
+    <div className="mt-auto pb-6 md:pb-12 flex justify-center">
       <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed text-orange-200 drop-shadow
                     text-base md:text-xl">
-        待遇と経験両方重視したいのにあまりにも時間と手間がかかる。
+        待遇と経験両方重視したいのに時間と手間がかかりぎる。
         <br />
         <span className="text-orange-300">
-          妥協して選んだ研修病院で後悔するケースも。
+          妥協して選んだ研修先で後悔することも。
         </span>
       </p>
     </div>
@@ -162,7 +162,7 @@ export default function Lp1Page() {
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           {/* 目立たせたい文章をメイン見出しに */}
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
-            Resimatchなら、検索・応募・スカウトまでワンストップで完結。
+            Resimatchなら、検索・比較・応募までワンストップで完結。
           </h2>
 
           {/* サブは控えめ */}
@@ -272,7 +272,7 @@ export default function Lp1Page() {
           <div className="flex min-h-[70vh] items-start pt-8 md:min-h-0 md:items-center md:pt-0">
             <div className="max-w-3xl text-white">
               <p className="text-sm font-semibold text-white/90 md:text-base">
-                学生最後の一年、今すぐ理想の研修先のために行動したい。
+                学生最後の一年、理想の研修先のために行動したい。
               </p>
               <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
                 Resimatchで頑張らずに

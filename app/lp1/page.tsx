@@ -1,30 +1,33 @@
 import Image from "next/image";
 import Link from "next/link";
-import { CTA } from "./_components/CTA";
 import { BgSection } from "./_components/BgSection";
+import { ScreenCarousel } from "./_components/ScreenCarousel";
 
 const IMG = {
   hero: { pc: "/lp1/hero_pc.jpg", sp: "/lp1/hero_sp.jpg" },
   worry: { pc: "/lp1/worry_pc.jpg", sp: "/lp1/worry_sp.jpg" },
-  solve: { pc: "/lp1/solve_pc.jpg", sp: "/lp1/solve_sp.jpg" },
-  screen: { pc: "/lp1/screen_pc.jpg", sp: "/lp1/screen_sp.jpg" },
-  beforeAfter: { pc: "/lp1/beforeafter_pc.jpg", sp: "/lp1/beforeafter_sp.jpg" },
-  closing: { pc: "/lp1/closing_pc.jpg", sp: "/lp1/closing_sp.jpg" },
-  final: { pc: "/lp1/finalcta_pc.jpg", sp: "/lp1/finalcta_sp.jpg" },
 };
 
-// ⑤の横スクロール用スクショ（あなたの実ファイル名に合わせて変更）
-const SCREENSHOTS = [
-  "/lp1/screens/screen1.png",
-  "/lp1/screens/screen2.png",
-  "/lp1/screens/screen3.png",
+const ICON = {
+  compare: "/lp1/icons/compare.png",
+  ai: "/lp1/icons/ai.png",
+  scout: "/lp1/icons/scout.png",
+};
+
+// ⑤の横スクロール：あなたの「実ファイル名」に合わせてここだけ編集
+// ※ 0枚でもビルドは通る（その場合カルーセルは表示されません）
+const CAROUSEL_IMAGES: string[] = [
+  // 例:
+  // "/lp1/screens/1.png",
+  // "/lp1/screens/2.png",
+  // "/lp1/screens/3.png",
 ];
 
 export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
       {/* =====================
-          ① Hero（上部：画像＋右側テキスト）
+          ① Hero（背景画像＋右側テキスト）
          ===================== */}
       <section className="relative">
         <div className="relative h-[320px] w-full md:h-[420px]">
@@ -45,7 +48,7 @@ export default function Lp1Page() {
             className="hidden object-cover md:block"
           />
 
-          {/* 右側にテキストを載せる（イメージ1枚目寄せ） */}
+          {/* テキストオーバーレイ */}
           <div className="absolute inset-0">
             <div className="mx-auto flex h-full max-w-6xl items-center px-4">
               <div className="ml-auto max-w-xl">
@@ -57,7 +60,7 @@ export default function Lp1Page() {
                   マッチング。
                 </h1>
                 <p className="mt-3 text-sm leading-relaxed text-slate-700 md:text-base">
-                  （仮）給与・当直・教育体制などの公開情報を整理し、比較から検討までを一気通貫で。
+                  給与・当直・教育体制などの公開情報を整理し、比較から検討までを一気通貫で。
                 </p>
               </div>
             </div>
@@ -66,17 +69,16 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ② CTA（白い帯＋中央ボタン）
+          ② CTA（白帯）
          ===================== */}
       <section className="border-b bg-white">
         <div className="mx-auto max-w-6xl px-4 py-10 text-center">
-          <h2 className="text-xl font-bold md:text-2xl">あなたに合う研修病院を見つけよう</h2>
-          <p className="mt-2 text-sm text-slate-600">
-            完全無料・最短3分で完了します
-          </p>
+          <h2 className="text-xl font-bold md:text-2xl">
+            あなたに合う研修病院を見つけよう
+          </h2>
+          <p className="mt-2 text-sm text-slate-600">完全無料・最短3分で完了します</p>
 
           <div className="mt-6 flex justify-center">
-            {/* CTAコンポーネント使っても良いが、デザイン寄せでオレンジボタン直書き */}
             <Link
               href="/student/onboarding?from=lp1"
               className="rounded-xl bg-orange-500 px-8 py-4 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
@@ -88,7 +90,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ③ お悩み（暗い背景画像＋左テキスト/箇条書き）
+          ③ お悩み（背景画像＋文字）
          ===================== */}
       <BgSection
         id="worry"
@@ -125,14 +127,12 @@ export default function Lp1Page() {
             </div>
           </div>
 
-          {/* 右側は背景に人物が入っている想定なので空でもOK。
-              もし右に別画像を置きたいならここにカードや図を置ける */}
           <div className="hidden md:block" />
         </div>
       </BgSection>
 
       {/* =====================
-          ④ 解決（白〜薄青、3カード）
+          ④ 解決 ＋ ⑤ 実際の画面（横スクロール）
          ===================== */}
       <section className="bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -149,31 +149,23 @@ export default function Lp1Page() {
               {
                 title: "病院一括比較機能",
                 desc: "情報を同じフォーマットで整理。比較がラク。",
-                icon: "/lp1/icons/compare.png",
+                icon: ICON.compare,
               },
               {
                 title: "AIレジュメ生成",
                 desc: "1クリックで応募に必要な情報を整える。",
-                icon: "/lp1/icons/ai.png",
+                icon: ICON.ai,
               },
               {
                 title: "ダイレクトスカウト",
                 desc: "あなたに合う研修病院から声が届く。",
-                icon: "/lp1/icons/scout.png",
+                icon: ICON.scout,
               },
             ].map((c) => (
-              <div
-                key={c.title}
-                className="rounded-2xl border bg-white p-6 shadow-sm"
-              >
+              <div key={c.title} className="rounded-2xl border bg-white p-6 shadow-sm">
                 <div className="flex items-center gap-3">
                   <div className="relative h-12 w-12 overflow-hidden rounded-xl bg-slate-100">
-                    <Image
-                      src={c.icon}
-                      alt=""
-                      fill
-                      className="object-contain p-2"
-                    />
+                    <Image src={c.icon} alt="" fill className="object-contain p-2" />
                   </div>
                   <h3 className="font-bold">{c.title}</h3>
                 </div>
@@ -183,23 +175,23 @@ export default function Lp1Page() {
           </div>
 
           {/* ⑤ 実際の画面（横スクロール） */}
-          <div className="mt-14">
-            <p className="text-center text-sm font-semibold text-slate-700">
-              実際の画面
-            </p>
-            <p className="mt-2 text-center text-xs text-slate-500">
-              ※年収・働き方など比較
-            </p>
+          {CAROUSEL_IMAGES.length > 0 ? (
+            <div className="mt-14">
+              <p className="text-center text-sm font-semibold text-slate-700">実際の画面</p>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                ※年収・働き方など比較
+              </p>
 
-            <div className="mt-6">
-              <ScreenCarousel images={SCREENSHOTS} />
+              <div className="mt-6">
+                <ScreenCarousel images={CAROUSEL_IMAGES} />
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
 
       {/* =====================
-          ⑥ Before→After（図っぽい構図）
+          ⑥ Before→After ＋ ⑦ クロージング
          ===================== */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -208,8 +200,7 @@ export default function Lp1Page() {
               <div>
                 <p className="text-sm font-bold text-slate-700">行けても月10件訪問</p>
                 <p className="mt-3 text-sm text-slate-600">
-                  面談調整やアポ取りの時点で大変。
-                  病院をしっかり比較する前に時間切れ…。
+                  面談調整やアポ取りの時点で大変。病院をしっかり比較する前に時間切れ…。
                 </p>
               </div>
 
@@ -228,7 +219,7 @@ export default function Lp1Page() {
               </div>
             </div>
 
-            {/* ⑦ クロージング（イメージ3枚目下の雰囲気） */}
+            {/* ⑦ クロージング */}
             <div className="mt-10 rounded-3xl bg-white p-6 md:p-10">
               <div className="grid gap-6 md:grid-cols-2 md:items-center">
                 <div>
@@ -260,7 +251,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑧ QA（4カードっぽく）
+          ⑧ QA ＋ ⑨ Final CTA
          ===================== */}
       <section className="bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -272,19 +263,19 @@ export default function Lp1Page() {
             {[
               {
                 q: "研修病院はどこから探す？",
-                a: "（仮）公開情報・公式情報を整備し、同じフォーマットで比較できます。",
+                a: "公開情報・公式情報を整備し、同じフォーマットで比較できます。",
               },
               {
                 q: "このマッチングで病院に迷惑は？",
-                a: "（仮）公開範囲の情報を元に、学生側の比較検討を支援します。",
+                a: "公開範囲の情報を元に、学生側の比較検討を支援します。",
               },
               {
                 q: "病院選びを早くした方が良い？",
-                a: "（仮）早めに軸を固めると、見学や準備を余裕を持って進められます。",
+                a: "早めに軸を固めると、見学や準備を余裕を持って進められます。",
               },
               {
                 q: "スカウトが来る仕組みは？",
-                a: "（仮）希望条件などをもとに、合う研修病院から声が届きます。",
+                a: "希望条件などをもとに、合う研修病院から声が届きます。",
               },
             ].map((x, i) => (
               <div key={x.q} className="rounded-2xl border bg-white p-5 shadow-sm">
@@ -295,7 +286,7 @@ export default function Lp1Page() {
             ))}
           </div>
 
-          {/* ⑨ Final CTA（下部） */}
+          {/* ⑨ Final CTA */}
           <div className="mt-10 text-center">
             <h2 className="text-2xl font-extrabold">理想の研修病院を見つけよう</h2>
             <p className="mt-2 text-sm text-slate-600">
@@ -318,87 +309,5 @@ export default function Lp1Page() {
         </div>
       </section>
     </main>
-  );
-}
-
-/* =========================================================
-   ⑤ 実際の画面：横スクロール（スクロール＋矢印＋ドット）
-   - 追加ファイル不要（page.tsx 内に同梱）
-   ========================================================= */
-function ScreenCarousel({ images }: { images: string[] }) {
-  const id = "lp1-carousel";
-
-  const scrollToIndex = (idx: number) => {
-    const root = document.getElementById(id);
-    if (!root) return;
-    const container = root.querySelector<HTMLDivElement>("[data-scroll]");
-    if (!container) return;
-
-    const child = container.children.item(idx) as HTMLElement | null;
-    if (!child) return;
-    container.scrollTo({ left: child.offsetLeft, behavior: "smooth" });
-  };
-
-  const scrollByPage = (dir: -1 | 1) => {
-    const root = document.getElementById(id);
-    if (!root) return;
-    const container = root.querySelector<HTMLDivElement>("[data-scroll]");
-    if (!container) return;
-
-    const w = container.clientWidth;
-    container.scrollBy({ left: dir * w, behavior: "smooth" });
-  };
-
-  return (
-    <div id={id} className="relative">
-      {/* 左右ボタン（PCのみ表示でもOK） */}
-      <button
-        type="button"
-        onClick={() => scrollByPage(-1)}
-        className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border bg-white/90 p-2 shadow-sm md:block"
-        aria-label="prev"
-      >
-        ←
-      </button>
-      <button
-        type="button"
-        onClick={() => scrollByPage(1)}
-        className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 rounded-full border bg-white/90 p-2 shadow-sm md:block"
-        aria-label="next"
-      >
-        →
-      </button>
-
-      {/* スクロール本体 */}
-      <div
-        data-scroll
-        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth rounded-2xl border bg-white p-4"
-        style={{ WebkitOverflowScrolling: "touch" as any }}
-      >
-        {images.map((src) => (
-          <div
-            key={src}
-            className="relative w-[85%] flex-none snap-center md:w-[70%]"
-          >
-            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl bg-slate-100">
-              <Image src={src} alt="Screenshot" fill className="object-cover" />
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ドット（クリックで移動） */}
-      <div className="mt-4 flex justify-center gap-2">
-        {images.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => scrollToIndex(i)}
-            className="h-2 w-2 rounded-full bg-slate-300 hover:bg-slate-400"
-            aria-label={`go-${i}`}
-          />
-        ))}
-      </div>
-    </div>
   );
 }

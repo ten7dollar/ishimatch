@@ -107,52 +107,55 @@ export default function Lp1Page() {
         <div className="h-10 bg-white md:h-14" />
       </section>
 
-      {/* =====================
-          ③ お悩み：画像内テキスト（背景なし）
-          - サブ箇条書き：PCだけ大きく
-          - 下部中央に追加メッセージを入れる
-         ===================== */}
-      <BgSection
-        id="worry"
-        pcSrc={IMG.worry.pc}
-        spSrc={IMG.worry.sp}
-        alt="Worry"
-        minHeightClassName="min-h-[72vh]"
-        overlayStrength="soft"
-        withSeparator={true}
-        fit="cover"
-        position="center"
-        scaleClassName="scale-100"
-      >
-        <div className="pl-2 md:pl-0">
-          <div className="max-w-2xl text-white">
-            <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
-              病院によって
-              <br />
-              待遇・働き方の記載がまちまち。
-              <br />
-              働き方がイメージできない。
-              <br />
-              こんなお悩みありませんか？
-            </h3>
+{/* ③ お悩み：画像内テキスト（背景なし） */}
+<BgSection
+  id="worry"
+  pcSrc={IMG.worry.pc}
+  spSrc={IMG.worry.sp}
+  alt="Worry"
+  minHeightClassName="min-h-[72vh]"
+  overlayStrength="soft"
+  withSeparator={true}
+  fit="cover"
+  position="center"
+  scaleClassName="scale-100"
+>
+  {/* relative にして、下部メッセージだけ絶対配置 */}
+  <div className="relative pl-2 md:pl-0">
+    {/* 上のコンテンツは「今の位置のまま」 */}
+    <div className="max-w-2xl text-white">
+      <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
+        病院によって
+        <br />
+        待遇・働き方の記載がまちまち。
+        <br />
+        働き方がイメージできない。
+        <br />
+        こんなお悩みありませんか？
+      </h3>
 
-            {/* 箇条書き：PCだけサイズUP */}
-            <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-lg md:leading-relaxed">
-              <li>・額面が高いけど当直回数や残業が多い</li>
-              <li>・当直料が安いのに回数が多い</li>
-              <li>・詳細は先輩に聞く/口コミでしか知れない</li>
-            </ul>
-          </div>
+      <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-lg md:leading-relaxed">
+        <li>・額面が高いけど当直回数や残業が多い</li>
+        <li>・当直料が安いのに回数が多い</li>
+        <li>・詳細は先輩に聞く/口コミでしか知れない</li>
+      </ul>
+    </div>
 
-          {/* 下部中央の追加メッセージ */}
-          <div className="mt-10 flex justify-center">
-            <div className="max-w-3xl text-center text-white/90 text-sm md:text-lg md:leading-relaxed">
-              待遇と経験両方重視したいのにあまりにも時間と手間がかかる。<br />
-              妥協して選んだ研修病院で後悔するケースも。
-            </div>
-          </div>
-        </div>
-      </BgSection>
+    {/* 下部固定メッセージ（これだけ下に固定） */}
+    <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center md:bottom-10">
+      <p className="max-w-[92%] text-center text-base font-extrabold leading-relaxed text-orange-200 drop-shadow md:max-w-3xl md:text-xl">
+        待遇と経験両方重視したいのにあまりにも時間と手間がかかる。
+        <br />
+        <span className="text-orange-300">
+          妥協して選んだ研修病院で後悔するケースも。
+        </span>
+      </p>
+    </div>
+
+    {/* 下部メッセージ分の“余白”を確保（重なり防止） */}
+    <div className="h-24 md:h-28" />
+  </div>
+</BgSection>
 
       {/* =====================
           ④ 解決：見出しを大きく、補足を小さくしない（逆転）

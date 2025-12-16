@@ -98,12 +98,19 @@ export default function StudentDashboard() {
         .channel(`student-scouts:dashboard:${user.id}`)
         .on(
           "postgres_changes",
-          { event: "*", schema: "public", table: "scout_invitations", filter: `student_id=eq.${user.id}` },
+          {
+            event: "*",
+            schema: "public",
+            table: "scout_invitations",
+            filter: `student_id=eq.${user.id}`,
+          },
           () => refreshUnread()
         )
         .subscribe();
     })();
-    return () => { if (ch) supabase.removeChannel(ch); };
+    return () => {
+      if (ch) supabase.removeChannel(ch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -322,7 +329,6 @@ export default function StudentDashboard() {
 
       {/* 検索導線：本音検索 / 通常検索 */}
       <section className="grid md:grid-cols-2 gap-4 pt-2">
-        {/* 本音検索 */}
         <Link
           href="/student/honne"
           className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-sky-50 to-slate-50 hover:bg-primary-50/80 shadow-sm hover:shadow-md transition group"
@@ -333,9 +339,7 @@ export default function StudentDashboard() {
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center justify-between">
-                <h2 className="text-base md:text-lg font-bold text-primary-800">
-                  本音検索
-                </h2>
+                <h2 className="text-base md:text-lg font-bold text-primary-800">本音検索</h2>
                 <span className="px-2 py-0.5 text-[10px] rounded-full bg-orange-100 text-orange-700 font-semibold">
                   新機能
                 </span>
@@ -351,7 +355,6 @@ export default function StudentDashboard() {
           </div>
         </Link>
 
-        {/* 通常検索 */}
         <Link
           href="/student/browse"
           className="rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm hover:shadow-md transition group"
@@ -362,9 +365,7 @@ export default function StudentDashboard() {
             </div>
             <div className="flex-1 space-y-1">
               <div className="flex items-center justify-between">
-                <h2 className="text-base md:text-lg font-bold text-slate-900">
-                  通常検索
-                </h2>
+                <h2 className="text-base md:text-lg font-bold text-slate-900">通常検索</h2>
               </div>
               <p className="text-[11px] md:text-sm text-text-muted">
                 都道府県・救急区分・年収帯・当直回数など、条件を指定して病院を検索します。
@@ -378,17 +379,22 @@ export default function StudentDashboard() {
         </Link>
       </section>
 
+      {/* =========================
+          ここから下は「ランキング / おすすめ」のみ修正
+          ・スマホ：横スクロール + スナップ + 高さ固定
+          ・PC：grid表示（横はみ出しを消す→サイドバー揺れ防止）
+      ========================= */}
+
       {/* 初年度年収ランキング */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary-600" />
-            <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
-          </div>
+        <div className="flex items-center gap-2">
+          <TrendingUp className="w-6 h-6 text-primary-600" />
+          <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
         </div>
 
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-4 min-w-full">
+        {/* --- Mobile: horizontal snap carousel --- */}
+        <div className="md:hidden -mx-4 px-4 overflow-x-auto pb-2">
+          <div className="flex gap-4 snap-x snap-mandatory">
             {rankingLoading && ranking.length === 0 && (
               <p className="text-sm text-text-muted px-1">読み込み中…</p>
             )}
@@ -402,7 +408,7 @@ export default function StudentDashboard() {
             {ranking.map((h, idx) => {
               const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
               const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
-              const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 50);
+              const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 46);
 
               const badgeGradient =
                 idx === 0
@@ -417,17 +423,18 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  // ★ ここが本質：blockにして width/min/max を効かせる（スマホだけカード幅を制御）
-                  className="block w-[78vw] min-w-[260px] max-w-[320px] flex-shrink-0 md:w-auto md:min-w-[260px] md:max-w-[320px]"
+                  className="snap-start shrink-0 w-[78vw] max-w-[320px]"
                 >
-                  <div className="rounded-2xl bg-white flex flex-col h-full">
-                    <div className="px-4 pt-3 flex justify-between items-center">
-                      <span className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
+                  <div className="rounded-2xl bg-white overflow-hidden">
+                    {/* badge */}
+                    <div className="px-4 pt-3">
+                      <span className={`inline-flex items-center justify-center text-[11px] px-5 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
                         {rankLabel}
                       </span>
                     </div>
 
-                    <div className="w-full h-32 mt-2 overflow-hidden">
+                    {/* image (height fixed to avoid layout shift) */}
+                    <div className="mt-2 h-32 bg-slate-100 overflow-hidden">
                       {rankingHeroMap[h.id] ? (
                         <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                       ) : (
@@ -435,13 +442,20 @@ export default function StudentDashboard() {
                       )}
                     </div>
 
-                    <div className="p-4 flex flex-col gap-2 flex-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 w-fit">
-                        {h.prefecture ?? "—"}・初期
-                      </span>
-                      <p className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</p>
-                      <p className="text-lg font-bold text-primary-800">{salaryText}</p>
-                      <p className="text-xs text-text-muted leading-relaxed line-clamp-3">{pr}</p>
+                    {/* content (height fixed by line-clamp + spacing) */}
+                    <div className="p-4 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                          {h.prefecture ?? "—"}・初期
+                        </span>
+                      </div>
+                      <p className="text-sm font-semibold text-primary-800 line-clamp-2 min-h-[40px]">
+                        {h.name}
+                      </p>
+                      <p className="text-base font-bold text-primary-800">{salaryText}</p>
+                      <p className="text-xs text-text-muted leading-relaxed line-clamp-2 min-h-[32px]">
+                        {pr}
+                      </p>
                     </div>
                   </div>
                 </Link>
@@ -449,14 +463,66 @@ export default function StudentDashboard() {
             })}
           </div>
         </div>
+
+        {/* --- Desktop: grid (no horizontal overflow) --- */}
+        <div className="hidden md:grid grid-cols-3 gap-6">
+          {ranking.map((h, idx) => {
+            const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
+            const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+            const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 60);
+
+            const badgeGradient =
+              idx === 0
+                ? "from-amber-400 via-yellow-300 to-amber-500"
+                : idx === 1
+                ? "from-slate-300 via-gray-200 to-slate-400"
+                : "from-orange-500 via-amber-400 to-orange-600";
+
+            const rankLabel = `${idx + 1}位`;
+
+            return (
+              <Link key={h.id} href={`/student/hospitals/${h.id}`} className="block">
+                <div className="rounded-2xl bg-white overflow-hidden">
+                  <div className="px-4 pt-3">
+                    <span className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
+                      {rankLabel}
+                    </span>
+                  </div>
+
+                  <div className="mt-2 h-32 bg-slate-100 overflow-hidden">
+                    {rankingHeroMap[h.id] ? (
+                      <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Image src={hero} alt={h.name} width={400} height={128} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 w-fit">
+                      {h.prefecture ?? "—"}・初期
+                    </span>
+                    <p className="text-sm font-semibold text-primary-800 line-clamp-2 min-h-[40px]">
+                      {h.name}
+                    </p>
+                    <p className="text-lg font-bold text-primary-800">{salaryText}</p>
+                    <p className="text-xs text-text-muted leading-relaxed line-clamp-3 min-h-[48px]">
+                      {pr}
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
       </section>
 
-      {/* あなたへのおすすめ（グラフ削除済み） */}
+      {/* あなたへのおすすめ */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
-        <div className="overflow-x-auto pb-2">
-          <div className="flex gap-4 min-w-full">
+        {/* Mobile */}
+        <div className="md:hidden -mx-4 px-4 overflow-x-auto pb-2">
+          <div className="flex gap-4 snap-x snap-mandatory">
             {recommended.length === 0 ? (
               <p className="text-sm text-text-muted px-1">
                 おすすめを表示できる病院データがまだありません。
@@ -465,43 +531,42 @@ export default function StudentDashboard() {
               recommended.map((h) => {
                 const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
                 const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
-                const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 60);
+                const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 52);
 
                 return (
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    // ★ 同じく block を付ける（inlineだと幅が効かない）
-                    className="block w-[78vw] min-w-[260px] max-w-[320px] flex-shrink-0 md:w-auto md:min-w-[260px] md:max-w-[320px]"
+                    className="snap-start shrink-0 w-[78vw] max-w-[320px]"
                   >
-                    <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
-                      <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
+                    <div className="rounded-2xl bg-white overflow-hidden border border-blue-100">
+                      <div className="h-28 bg-slate-100 overflow-hidden">
                         {recommendedHeroMap[h.id] ? (
                           <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                         ) : (
-                          <Image src={hero} alt={h.name} width={400} height={96} className="w-full h-full object-cover" />
+                          <Image src={hero} alt={h.name} width={400} height={112} className="w-full h-full object-cover" />
                         )}
                       </div>
 
-                      <div className="p-4 flex flex-col gap-2 flex-1">
+                      <div className="p-4 space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h3 className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</h3>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-primary-800 line-clamp-2 min-h-[40px]">
+                              {h.name}
+                            </p>
                             <p className="text-xs text-text-muted">
                               {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
                             </p>
                           </div>
-                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
+                          <span className="shrink-0 px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
                             おすすめ
                           </span>
                         </div>
 
-                        <p className="text-xs text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4">
+                        <p className="text-xs text-text-muted leading-relaxed line-clamp-2 min-h-[32px]">
                           <span className="font-semibold text-primary-800">{salaryText}</span>
                           <span className="ml-1">{pr}</span>
                         </p>
-
-                        <div className="pt-2" />
                       </div>
                     </div>
                   </Link>
@@ -509,6 +574,50 @@ export default function StudentDashboard() {
               })
             )}
           </div>
+        </div>
+
+        {/* Desktop */}
+        <div className="hidden md:grid grid-cols-3 gap-6">
+          {recommended.map((h) => {
+            const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
+            const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+            const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 70);
+
+            return (
+              <Link key={h.id} href={`/student/hospitals/${h.id}`} className="block">
+                <div className="rounded-2xl bg-white overflow-hidden border border-blue-100 hover:shadow-sm transition">
+                  <div className="h-28 bg-slate-100 overflow-hidden">
+                    {recommendedHeroMap[h.id] ? (
+                      <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Image src={hero} alt={h.name} width={400} height={112} className="w-full h-full object-cover" />
+                    )}
+                  </div>
+
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-primary-800 line-clamp-2 min-h-[40px]">
+                          {h.name}
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
+                        </p>
+                      </div>
+                      <span className="shrink-0 px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
+                        おすすめ
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-text-muted leading-relaxed line-clamp-3 min-h-[48px]">
+                      <span className="font-semibold text-primary-800">{salaryText}</span>
+                      <span className="ml-1">{pr}</span>
+                    </p>
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
     </main>

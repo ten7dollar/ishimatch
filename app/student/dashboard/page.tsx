@@ -380,9 +380,11 @@ export default function StudentDashboard() {
       </section>
 
       {/* =========================
-          ここから下は「ランキング / おすすめ」のみ修正
-          ・スマホ：横スクロール + スナップ + 高さ固定
-          ・PC：grid表示（横はみ出しを消す→サイドバー揺れ防止）
+        ↓↓↓ ここから「ランキング」「おすすめ」だけを修正
+        スマホで“前の元コードみたいな”見え方に寄せるためのポイント：
+        - min-w-full を絶対使わない
+        - 横スクロール領域を -mx-4 で画面端まで広げ、次カードがチラ見えするようにする
+        - カード幅は 72vw（やや小さめ）+ max 320 で端末差を吸収
       ========================= */}
 
       {/* 初年度年収ランキング */}
@@ -392,13 +394,12 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
         </div>
 
-        {/* --- Mobile: horizontal snap carousel --- */}
+        {/* Mobile：チラ見えする横スクロール */}
         <div className="md:hidden -mx-4 px-4 overflow-x-auto pb-2">
-          <div className="flex gap-4 snap-x snap-mandatory">
+          <div className="flex gap-4">
             {rankingLoading && ranking.length === 0 && (
               <p className="text-sm text-text-muted px-1">読み込み中…</p>
             )}
-
             {!rankingLoading && ranking.length === 0 && (
               <p className="text-sm text-text-muted px-1">
                 ランキングを表示できる病院データがまだありません。
@@ -423,32 +424,27 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="snap-start shrink-0 w-[78vw] max-w-[320px]"
+                  className="shrink-0 w-[72vw] max-w-[320px]"
                 >
                   <div className="rounded-2xl bg-white overflow-hidden">
-                    {/* badge */}
                     <div className="px-4 pt-3">
                       <span className={`inline-flex items-center justify-center text-[11px] px-5 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
                         {rankLabel}
                       </span>
                     </div>
 
-                    {/* image (height fixed to avoid layout shift) */}
-                    <div className="mt-2 h-32 bg-slate-100 overflow-hidden">
+                    <div className="mt-2 h-28 bg-slate-100 overflow-hidden">
                       {rankingHeroMap[h.id] ? (
                         <img src={hero} alt={h.name} className="w-full h-full object-cover" />
                       ) : (
-                        <Image src={hero} alt={h.name} width={400} height={128} className="w-full h-full object-cover" />
+                        <Image src={hero} alt={h.name} width={400} height={112} className="w-full h-full object-cover" />
                       )}
                     </div>
 
-                    {/* content (height fixed by line-clamp + spacing) */}
                     <div className="p-4 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                          {h.prefecture ?? "—"}・初期
-                        </span>
-                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                        {h.prefecture ?? "—"}・初期
+                      </span>
                       <p className="text-sm font-semibold text-primary-800 line-clamp-2 min-h-[40px]">
                         {h.name}
                       </p>
@@ -464,7 +460,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* --- Desktop: grid (no horizontal overflow) --- */}
+        {/* PC：grid（安定・はみ出しなし） */}
         <div className="hidden md:grid grid-cols-3 gap-6">
           {ranking.map((h, idx) => {
             const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
@@ -520,9 +516,9 @@ export default function StudentDashboard() {
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
-        {/* Mobile */}
+        {/* Mobile：チラ見えする横スクロール */}
         <div className="md:hidden -mx-4 px-4 overflow-x-auto pb-2">
-          <div className="flex gap-4 snap-x snap-mandatory">
+          <div className="flex gap-4">
             {recommended.length === 0 ? (
               <p className="text-sm text-text-muted px-1">
                 おすすめを表示できる病院データがまだありません。
@@ -537,7 +533,7 @@ export default function StudentDashboard() {
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    className="snap-start shrink-0 w-[78vw] max-w-[320px]"
+                    className="shrink-0 w-[72vw] max-w-[320px]"
                   >
                     <div className="rounded-2xl bg-white overflow-hidden border border-blue-100">
                       <div className="h-28 bg-slate-100 overflow-hidden">
@@ -576,7 +572,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Desktop */}
+        {/* PC：grid */}
         <div className="hidden md:grid grid-cols-3 gap-6">
           {recommended.map((h) => {
             const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";

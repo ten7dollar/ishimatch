@@ -14,7 +14,7 @@ const IMG = {
   finalCta: { pc: "/lp1/finalcta_pc.jpg", sp: "/lp1/finalcta_sp.jpg" },
 };
 
-// ⑤の追加スクショ（任意）
+// ⑤：追加のプロダクトスクショ（任意）
 const PRODUCT_SCREENSHOTS: string[] = [
   // "/lp1/product/1.png",
   // "/lp1/product/2.png",
@@ -25,7 +25,7 @@ export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
       {/* =====================
-          ① Hero：画像内にテキストのみ（背景なし）
+          ① Hero：画像内テキスト（背景なし）
          ===================== */}
       <BgSection
         id="hero"
@@ -35,8 +35,9 @@ export default function Lp1Page() {
         minHeightClassName="min-h-[78vh]"
         overlayStrength="none"
         withSeparator={true}
+        fit="cover"
+        position="center"
       >
-        {/* 左端から余白を空ける */}
         <div className="pl-2 md:pl-0">
           <div className="max-w-2xl">
             <h1 className="text-2xl font-extrabold leading-tight text-slate-900 md:text-5xl">
@@ -53,13 +54,13 @@ export default function Lp1Page() {
             <div className="mt-7 flex flex-wrap gap-3">
               <Link
                 href={SIGNUP_URL}
-                className="rounded-xl bg-orange-500 px-7 py-3.5 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+                className="rounded-xl bg-orange-500 px-7 py-3.5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
               >
                 無料で診断する →
               </Link>
               <Link
                 href="#worry"
-                className="rounded-xl bg-white/70 px-7 py-3.5 text-sm font-semibold text-slate-900 hover:bg-white"
+                className="rounded-xl bg-white/70 px-7 py-3.5 text-base font-semibold text-slate-900 hover:bg-white"
               >
                 悩みを見る
               </Link>
@@ -81,7 +82,7 @@ export default function Lp1Page() {
           <div className="mt-6 flex justify-center">
             <Link
               href={SIGNUP_URL}
-              className="rounded-xl bg-orange-500 px-8 py-4 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
+              className="rounded-xl bg-orange-500 px-8 py-4 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
             >
               無料で診断する →
             </Link>
@@ -91,7 +92,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ③ お悩み：画像内にテキストのみ（背景なし）
+          ③ お悩み：画像内テキスト（背景なし）
          ===================== */}
       <BgSection
         id="worry"
@@ -99,8 +100,10 @@ export default function Lp1Page() {
         spSrc={IMG.worry.sp}
         alt="Worry"
         minHeightClassName="min-h-[72vh]"
-        overlayStrength="soft" // ほんのり
+        overlayStrength="soft"
         withSeparator={true}
+        fit="cover"
+        position="center"
       >
         <div className="pl-2 md:pl-0">
           <div className="max-w-2xl text-white">
@@ -122,10 +125,10 @@ export default function Lp1Page() {
       </BgSection>
 
       {/* =====================
-          ④ 解決：テキストは画像の外（上）→ 画像だけ表示
+          ④ 解決：テキストは画像外（上） + 画像（余白あり）
          ===================== */}
       <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14">
+        <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <p className="text-sm font-semibold text-slate-600">
             Resimatchなら、検索・応募・スカウトまでワンストップで完結。
           </p>
@@ -147,7 +150,6 @@ export default function Lp1Page() {
           </div>
         </div>
 
-        {/* 画像だけ */}
         <BgSection
           id="solve"
           pcSrc={IMG.solve.pc}
@@ -156,18 +158,19 @@ export default function Lp1Page() {
           minHeightClassName="min-h-[62vh]"
           overlayStrength="none"
           withSeparator={true}
-          contentClassName="py-0"
+          contentClassName="py-10 md:py-14"
+          fit="cover"
+          position="center"
         >
-          {/* 画像だけ表示にしたいので中身空 */}
           <div />
         </BgSection>
       </section>
 
       {/* =====================
-          ⑤ 実際の画面：テキストは画像の外（上）＋ 画像表示（＋スクショ任意）
+          ⑤ 実際の画面：テキストは画像外（上） + スクショ（任意） + 画像（余白あり）
          ===================== */}
       <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14">
+        <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
             実際の画面
           </h2>
@@ -182,7 +185,6 @@ export default function Lp1Page() {
           ) : null}
         </div>
 
-        {/* 画像だけ */}
         <BgSection
           id="screen"
           pcSrc={IMG.screen.pc}
@@ -191,17 +193,19 @@ export default function Lp1Page() {
           minHeightClassName="min-h-[62vh]"
           overlayStrength="none"
           withSeparator={true}
-          contentClassName="py-0"
+          contentClassName="py-10 md:py-14"
+          fit="cover"
+          position="center"
         >
           <div />
         </BgSection>
       </section>
 
       {/* =====================
-          ⑥ Before→After：テキストは画像の外（上）＋ 画像表示
+          ⑥ Before→After：テキストは画像外（上） + 画像（余白あり）
          ===================== */}
       <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14">
+        <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
             Before → After
           </h2>
@@ -218,41 +222,53 @@ export default function Lp1Page() {
           minHeightClassName="min-h-[62vh]"
           overlayStrength="none"
           withSeparator={true}
-          contentClassName="py-0"
+          contentClassName="py-10 md:py-14"
+          fit="cover"
+          position="center"
         >
           <div />
         </BgSection>
       </section>
 
       {/* =====================
-          ⑦ クロージング：テキストは画像の外（上）＋ 画像表示
+          ⑦ クロージング：画像内にテキストを入れる
          ===================== */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14">
-          <p className="text-sm font-semibold text-slate-600">
-            学生最後の一年、今すぐ理想の研修先のために行動したい。
-          </p>
-          <h2 className="mt-2 text-2xl font-extrabold text-slate-900 md:text-3xl">
-            Resimatchで頑張らずにキャリア・遊び・勉強を掴り取る。
-          </h2>
-        </div>
+      <BgSection
+        id="closing"
+        pcSrc={IMG.closing.pc}
+        spSrc={IMG.closing.sp}
+        alt="Closing"
+        minHeightClassName="min-h-[70vh]"
+        overlayStrength="soft"
+        withSeparator={true}
+        fit="cover"
+        position="center"
+      >
+        <div className="pl-2 md:pl-0">
+          <div className="max-w-3xl text-white">
+            <p className="text-sm font-semibold text-white/90">
+              学生最後の一年、今すぐ理想の研修先のために行動したい。
+            </p>
+            <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
+              Resimatchで頑張らずに
+              <br />
+              キャリア・遊び・勉強を掴り取る。
+            </h2>
 
-        <BgSection
-          id="closing"
-          pcSrc={IMG.closing.pc}
-          spSrc={IMG.closing.sp}
-          alt="Closing"
-          minHeightClassName="min-h-[62vh]"
-          overlayStrength="none"
-          withSeparator={true}
-          contentClassName="py-0"
-        >
-          <div />
-        </BgSection>
-      </section>
+            <div className="mt-6">
+              <Link
+                href={SIGNUP_URL}
+                className="inline-flex rounded-xl bg-orange-500 px-10 py-5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
+              >
+                無料で診断する →
+              </Link>
+            </div>
+          </div>
+        </div>
+      </BgSection>
 
       {/* =====================
-          ⑧ QA：画像なし（FinalCTAの上に配置）
+          ⑧ QA：画像なし（FinalCTAの上）
          ===================== */}
       <section id="qa" className="bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
@@ -290,7 +306,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑨ Final CTA：画像の上にCTAボタンを入れる
+          ⑨ FinalCTA：画像の上にボタンだけ（中央やや下）
          ===================== */}
       <BgSection
         id="final"
@@ -298,30 +314,19 @@ export default function Lp1Page() {
         spSrc={IMG.finalCta.sp}
         alt="Final CTA"
         minHeightClassName="min-h-[60vh]"
-        overlayStrength="soft"
+        overlayStrength="none"
         withSeparator={false}
+        fit="cover"
+        position="center"
       >
-        <div className="pl-2 md:pl-0">
-          <div className="max-w-2xl text-white">
-            <h2 className="text-2xl font-extrabold md:text-4xl">
-              理想の研修病院を見つけよう
-            </h2>
-            <p className="mt-3 text-sm text-white/90 md:text-base">
-              スカウト×レジュメ×比較で、あなたに合う研修先に最短で辿り着く
-            </p>
-
-            <div className="mt-6">
-              <Link
-                href={SIGNUP_URL}
-                className="inline-flex rounded-xl bg-orange-500 px-8 py-4 text-sm font-semibold text-white shadow-sm hover:bg-orange-600"
-              >
-                無料で診断する →
-              </Link>
-            </div>
-
-            <p className="mt-3 text-xs text-white/80">
-              ※情報は公開情報・公式情報を元に整備しています
-            </p>
+        <div className="flex min-h-[60vh] items-center justify-center">
+          <div className="translate-y-10 md:translate-y-14">
+            <Link
+              href={SIGNUP_URL}
+              className="inline-flex rounded-xl bg-orange-500 px-10 py-5 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
+            >
+              無料で診断する →
+            </Link>
           </div>
         </div>
       </BgSection>

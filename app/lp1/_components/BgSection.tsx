@@ -19,10 +19,12 @@ type Props = {
   overlayStrength?: OverlayStrength;
   withSeparator?: boolean;
 
-  // 追加：画像の見え方を調整
-  fit?: Fit; // default cover
-  position?: string; // default "center" (例: "top", "center", "bottom")
-  scaleClassName?: string; // 例: "scale-[0.96]" で少しズームアウト
+  fit?: Fit;
+  position?: string; // "top" | "center" | "bottom"
+  scaleClassName?: string;
+
+  // 追加：contain の余白色など
+  bgClassName?: string; // default white
 };
 
 function overlayClass(strength: OverlayStrength) {
@@ -50,7 +52,8 @@ export function BgSection({
   withSeparator = true,
   fit = "cover",
   position = "center",
-  scaleClassName = "scale-[0.9]", // ほんの少しズームアウト（見切れ緩和）
+  scaleClassName = "scale-100",
+  bgClassName = "bg-white",
 }: Props) {
   const mobileSrc = spSrc ?? pcSrc;
   const ov = overlayClass(overlayStrength);
@@ -65,7 +68,7 @@ export function BgSection({
 
   return (
     <section id={id} className="bg-white">
-      <div className={`relative overflow-hidden ${minHeightClassName}`}>
+      <div className={`relative overflow-hidden ${bgClassName} ${minHeightClassName}`}>
         <Image
           src={mobileSrc}
           alt={alt}

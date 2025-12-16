@@ -15,18 +15,12 @@ const IMG = {
 };
 
 // ⑤：追加のプロダクトスクショ（任意）
-const PRODUCT_SCREENSHOTS: string[] = [
-  // "/lp1/product/1.png",
-  // "/lp1/product/2.png",
-  // "/lp1/product/3.png",
-];
+const PRODUCT_SCREENSHOTS: string[] = [];
 
 export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
-      {/* =====================
-          ① Hero：画像内テキスト（背景なし）
-         ===================== */}
+      {/* ① Hero：画像内テキスト（背景なし） */}
       <BgSection
         id="hero"
         pcSrc={IMG.hero.pc}
@@ -37,6 +31,7 @@ export default function Lp1Page() {
         withSeparator={true}
         fit="cover"
         position="center"
+        scaleClassName="scale-100"
       >
         <div className="pl-2 md:pl-0">
           <div className="max-w-2xl">
@@ -69,17 +64,15 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* =====================
-          ② CTA（白帯）
-         ===================== */}
+      {/* ② CTA（白帯：縦余白を少し詰める） */}
       <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-10 text-center">
+        <div className="mx-auto max-w-6xl px-4 py-8 text-center md:py-9">
           <h2 className="text-xl font-extrabold md:text-2xl">
             あなたに合う研修病院を見つけよう
           </h2>
           <p className="mt-2 text-sm text-slate-600">完全無料・最短3分で完了します</p>
 
-          <div className="mt-6 flex justify-center">
+          <div className="mt-5 flex justify-center">
             <Link
               href={SIGNUP_URL}
               className="rounded-xl bg-orange-500 px-8 py-4 text-base font-semibold text-white shadow-sm hover:bg-orange-600"
@@ -91,9 +84,7 @@ export default function Lp1Page() {
         <div className="h-10 bg-white md:h-14" />
       </section>
 
-      {/* =====================
-          ③ お悩み：画像内テキスト（背景なし）
-         ===================== */}
+      {/* ③ お悩み：画像内テキスト（背景なし） */}
       <BgSection
         id="worry"
         pcSrc={IMG.worry.pc}
@@ -104,6 +95,7 @@ export default function Lp1Page() {
         withSeparator={true}
         fit="cover"
         position="center"
+        scaleClassName="scale-100"
       >
         <div className="pl-2 md:pl-0">
           <div className="max-w-2xl text-white">
@@ -124,9 +116,7 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* =====================
-          ④ 解決：テキストは画像外（上） + 画像（余白あり）
-         ===================== */}
+      {/* ④ 解決：テキストは画像外（上） + 画像（常に全体表示＝contain） */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <p className="text-sm font-semibold text-slate-600">
@@ -155,20 +145,20 @@ export default function Lp1Page() {
           pcSrc={IMG.solve.pc}
           spSrc={IMG.solve.sp}
           alt="Solve"
-          minHeightClassName="min-h-[62vh]"
+          minHeightClassName="min-h-[56vh]"
           overlayStrength="none"
           withSeparator={true}
           contentClassName="py-10 md:py-14"
-          fit="cover"
+          fit="contain"
           position="center"
+          bgClassName="bg-white"
+          scaleClassName="scale-100"
         >
           <div />
         </BgSection>
       </section>
 
-      {/* =====================
-          ⑤ 実際の画面：テキストは画像外（上） + スクショ（任意） + 画像（余白あり）
-         ===================== */}
+      {/* ⑤ 実際の画面：テキスト外 + 画像（contain） */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
@@ -190,20 +180,20 @@ export default function Lp1Page() {
           pcSrc={IMG.screen.pc}
           spSrc={IMG.screen.sp}
           alt="Screen"
-          minHeightClassName="min-h-[62vh]"
+          minHeightClassName="min-h-[56vh]"
           overlayStrength="none"
           withSeparator={true}
           contentClassName="py-10 md:py-14"
-          fit="cover"
+          fit="contain"
           position="center"
+          bgClassName="bg-white"
+          scaleClassName="scale-100"
         >
           <div />
         </BgSection>
       </section>
 
-      {/* =====================
-          ⑥ Before→After：テキストは画像外（上） + 画像（余白あり）
-         ===================== */}
+      {/* ⑥ Before→After：テキスト外 + 画像（contain） */}
       <section className="bg-white">
         <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-3xl">
@@ -219,20 +209,20 @@ export default function Lp1Page() {
           pcSrc={IMG.beforeAfter.pc}
           spSrc={IMG.beforeAfter.sp}
           alt="Before After"
-          minHeightClassName="min-h-[62vh]"
+          minHeightClassName="min-h-[56vh]"
           overlayStrength="none"
           withSeparator={true}
           contentClassName="py-10 md:py-14"
-          fit="cover"
+          fit="contain"
           position="center"
+          bgClassName="bg-white"
+          scaleClassName="scale-100"
         >
           <div />
         </BgSection>
       </section>
 
-      {/* =====================
-          ⑦ クロージング：画像内にテキストを入れる
-         ===================== */}
+      {/* ⑦ クロージング：画像内テキスト */}
       <BgSection
         id="closing"
         pcSrc={IMG.closing.pc}
@@ -243,6 +233,7 @@ export default function Lp1Page() {
         withSeparator={true}
         fit="cover"
         position="center"
+        scaleClassName="scale-100"
       >
         <div className="pl-2 md:pl-0">
           <div className="max-w-3xl text-white">
@@ -267,9 +258,7 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* =====================
-          ⑧ QA：画像なし（FinalCTAの上）
-         ===================== */}
+      {/* ⑧ QA：画像なし */}
       <section id="qa" className="bg-slate-50">
         <div className="mx-auto max-w-6xl px-4 py-16">
           <div className="inline-flex rounded-2xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white">
@@ -305,9 +294,7 @@ export default function Lp1Page() {
         </div>
       </section>
 
-      {/* =====================
-          ⑨ FinalCTA：画像の上にボタンだけ（中央やや下）
-         ===================== */}
+      {/* ⑨ FinalCTA：画像上にボタンだけ */}
       <BgSection
         id="final"
         pcSrc={IMG.finalCta.pc}
@@ -318,6 +305,7 @@ export default function Lp1Page() {
         withSeparator={false}
         fit="cover"
         position="center"
+        scaleClassName="scale-100"
       >
         <div className="flex min-h-[60vh] items-center justify-center">
           <div className="translate-y-10 md:translate-y-14">

@@ -145,7 +145,9 @@ export default function Lp1Page() {
     <div className="mt-auto pb-6 md:pb-12 flex justify-center">
       <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed text-orange-200 drop-shadow
                     text-base md:text-xl">
-        待遇と経験両方重視したいのに時間と手間がかかりぎる。
+        待遇と経験両方重視したいのに
+        <br />
+        時間と手間がかかりぎる。
         <br />
         <span className="text-orange-300">
           妥協して選んだ研修先で後悔することも。

@@ -137,9 +137,7 @@ export default function StudentDashboard() {
       try {
         const { data, error } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .not("salary_1st_year_max", "is", null)
           .order("salary_1st_year_max", { ascending: false })
           .limit(3);
@@ -170,10 +168,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           ranking.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -222,9 +220,7 @@ export default function StudentDashboard() {
 
         const { data: hospRows, error: hospErr } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .in("id", ids);
 
         if (hospErr) {
@@ -259,10 +255,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           recommended.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -406,7 +402,7 @@ export default function StudentDashboard() {
           <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
         </div>
 
-        {/* ★ スマホ最適化：カード固定幅 + snap */}
+        {/* ✅ SP: カード固定幅で横スクロール / PC: 影響なし */}
         <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
           <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
             {rankingLoading && ranking.length === 0 && (
@@ -448,7 +444,7 @@ export default function StudentDashboard() {
                       </span>
                     </div>
 
-                    {/* 画像：比率固定でガタつき防止 */}
+                    {/* 画像：比率固定（ロード前後でガタつかない） */}
                     <div className="w-full mt-2 overflow-hidden">
                       <div className="relative w-full aspect-[16/9]">
                         {rankingHeroMap[h.id] ? (
@@ -479,7 +475,7 @@ export default function StudentDashboard() {
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
-        {/* ★ スマホ最適化：カード固定幅 + snap */}
+        {/* ✅ SP: カード固定幅で横スクロール / PC: 影響なし */}
         <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
           <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
             {recommended.length === 0 ? (

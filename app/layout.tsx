@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -31,6 +31,13 @@ export const metadata: Metadata = {
     description: "実質時給で選ぶ。次世代EBM型初期研修マッチング。",
     // images: ["/ogp.png"],
   },
+};
+
+// ★ 追加：スマホでPC幅が縮小表示されるのを防ぐ（最重要）
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

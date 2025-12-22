@@ -137,7 +137,9 @@ export default function StudentDashboard() {
       try {
         const { data, error } = await supabase
           .from("hospitals_resolved")
-          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
+          .select(
+            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
+          )
           .not("salary_1st_year_max", "is", null)
           .order("salary_1st_year_max", { ascending: false })
           .limit(3);
@@ -168,10 +170,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           ranking.map(async (h) => {
             try {
-              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
-                method: "GET",
-                cache: "no-store",
-              });
+              const res = await fetch(
+                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
+                { method: "GET", cache: "no-store" }
+              );
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -220,7 +222,9 @@ export default function StudentDashboard() {
 
         const { data: hospRows, error: hospErr } = await supabase
           .from("hospitals_resolved")
-          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
+          .select(
+            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
+          )
           .in("id", ids);
 
         if (hospErr) {
@@ -255,10 +259,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           recommended.map(async (h) => {
             try {
-              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
-                method: "GET",
-                cache: "no-store",
-              });
+              const res = await fetch(
+                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
+                { method: "GET", cache: "no-store" }
+              );
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -395,143 +399,125 @@ export default function StudentDashboard() {
         </Link>
       </section>
 
-      {/* 初年度年収ランキング */}
+      {/* 初年度年収ランキング：スマホは縦並び、PCは3列 */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <div className="flex items-center gap-2">
           <TrendingUp className="w-6 h-6 text-primary-600" />
           <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
         </div>
 
-        {/* ✅ SP: カード固定幅で横スクロール / PC: 影響なし */}
-        <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
-            {rankingLoading && ranking.length === 0 && (
-              <p className="text-sm text-text-muted px-1">読み込み中…</p>
-            )}
+        {rankingLoading && ranking.length === 0 && (
+          <p className="text-sm text-text-muted">読み込み中…</p>
+        )}
 
-            {!rankingLoading && ranking.length === 0 && (
-              <p className="text-sm text-text-muted px-1">
-                ランキングを表示できる病院データがまだありません。
-              </p>
-            )}
+        {!rankingLoading && ranking.length === 0 && (
+          <p className="text-sm text-text-muted">
+            ランキングを表示できる病院データがまだありません。
+          </p>
+        )}
 
-            {ranking.map((h, idx) => {
-              const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {ranking.map((h, idx) => {
+            const hero = rankingHeroMap[h.id] || "/images/hero-hospital.jpg";
+            const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
+            const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 70);
+
+            const badgeGradient =
+              idx === 0
+                ? "from-amber-400 via-yellow-300 to-amber-500"
+                : idx === 1
+                ? "from-slate-300 via-gray-200 to-slate-400"
+                : "from-orange-500 via-amber-400 to-orange-600";
+
+            const rankLabel = `${idx + 1}位`;
+
+            return (
+              <Link
+                key={h.id}
+                href={`/student/hospitals/${h.id}`}
+                className="rounded-2xl bg-white border border-slate-100 hover:shadow-sm transition overflow-hidden"
+              >
+                <div className="p-4 flex items-center justify-between">
+                  <span className={`inline-flex items-center justify-center text-[11px] px-5 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
+                    {rankLabel}
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                    {h.prefecture ?? "—"}・初期
+                  </span>
+                </div>
+
+                {/* 画像：スマホで横に引っ張られないように固定高さ */}
+                <div className="w-full h-40 md:h-32 bg-slate-100 overflow-hidden">
+                  {rankingHeroMap[h.id] ? (
+                    <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <Image src={hero} alt={h.name} width={800} height={400} className="w-full h-full object-cover" />
+                  )}
+                </div>
+
+                <div className="p-4 space-y-2">
+                  <p className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</p>
+                  <p className="text-lg font-bold text-primary-800">{salaryText}</p>
+                  <p className="text-xs text-text-muted leading-relaxed line-clamp-3">{pr}</p>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* あなたへのおすすめ：スマホは縦並び、PCは3列 */}
+      <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
+        <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
+
+        {recommended.length === 0 ? (
+          <p className="text-sm text-text-muted">
+            おすすめを表示できる病院データがまだありません。
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {recommended.map((h) => {
+              const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
               const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
-              const pr = truncate(h.pr_highlights ?? "PR情報は準備中です。", 50);
-
-              const badgeGradient =
-                idx === 0
-                  ? "from-amber-400 via-yellow-300 to-amber-500"
-                  : idx === 1
-                  ? "from-slate-300 via-gray-200 to-slate-400"
-                  : "from-orange-500 via-amber-400 to-orange-600";
-
-              const rankLabel = `${idx + 1}位`;
+              const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 80);
 
               return (
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="snap-start flex-shrink-0 w-[280px] sm:w-[320px] md:min-w-[260px] md:max-w-[320px]"
+                  className="rounded-2xl bg-white border border-blue-100 hover:shadow-sm transition overflow-hidden"
                 >
-                  <div className="rounded-2xl bg-white flex flex-col h-full">
-                    <div className="px-4 pt-3 flex justify-between items-center">
-                      <span
-                        className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}
-                      >
-                        {rankLabel}
-                      </span>
-                    </div>
+                  <div className="w-full h-40 md:h-28 bg-slate-100 overflow-hidden">
+                    {recommendedHeroMap[h.id] ? (
+                      <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <Image src={hero} alt={h.name} width={800} height={400} className="w-full h-full object-cover" />
+                    )}
+                  </div>
 
-                    {/* 画像：比率固定（ロード前後でガタつかない） */}
-                    <div className="w-full mt-2 overflow-hidden">
-                      <div className="relative w-full aspect-[16/9]">
-                        {rankingHeroMap[h.id] ? (
-                          <img src={hero} alt={h.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Image src={hero} alt={h.name} fill className="object-cover" />
-                        )}
+                  <div className="p-4 space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</p>
+                        <p className="text-xs text-text-muted">
+                          {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
+                        </p>
                       </div>
+                      <span className="shrink-0 px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
+                        おすすめ
+                      </span>
                     </div>
 
-                    <div className="p-4 flex flex-col gap-2 flex-1">
-                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 w-fit">
-                        {h.prefecture ?? "—"}・初期
-                      </span>
-                      <p className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</p>
-                      <p className="text-lg font-bold text-primary-800">{salaryText}</p>
-                      <p className="text-xs text-text-muted leading-relaxed line-clamp-3">{pr}</p>
-                    </div>
+                    <p className="text-xs text-text-muted leading-relaxed line-clamp-3">
+                      <span className="font-semibold text-primary-800">{salaryText}</span>
+                      <span className="ml-1">{pr}</span>
+                    </p>
                   </div>
                 </Link>
               );
             })}
           </div>
-        </div>
-      </section>
-
-      {/* あなたへのおすすめ（グラフ削除済み） */}
-      <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
-        <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
-
-        {/* ✅ SP: カード固定幅で横スクロール / PC: 影響なし */}
-        <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
-            {recommended.length === 0 ? (
-              <p className="text-sm text-text-muted px-1">
-                おすすめを表示できる病院データがまだありません。
-              </p>
-            ) : (
-              recommended.map((h) => {
-                const hero = recommendedHeroMap[h.id] || "/images/hero-hospital.jpg";
-                const salaryText = formatSalary(h.salary_1st_year_max, h.salary_1st_year_min);
-                const pr = truncate(h.pr_highlights ?? "あなたの条件に近い病院です。", 60);
-
-                return (
-                  <Link
-                    key={h.id}
-                    href={`/student/hospitals/${h.id}`}
-                    className="snap-start flex-shrink-0 w-[280px] sm:w-[320px] md:min-w-[260px] md:max-w-[320px]"
-                  >
-                    <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
-                      <div className="w-full mt-2 rounded-t-2xl overflow-hidden">
-                        <div className="relative w-full aspect-[16/9]">
-                          {recommendedHeroMap[h.id] ? (
-                            <img src={hero} alt={h.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Image src={hero} alt={h.name} fill className="object-cover" />
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="p-4 flex flex-col gap-2 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h3 className="text-sm font-semibold text-primary-800 line-clamp-2">{h.name}</h3>
-                            <p className="text-xs text-text-muted">
-                              {h.prefecture ?? "—"}・{h.region ?? "エリア未設定"}
-                            </p>
-                          </div>
-                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-primary-50 text-primary-700">
-                            おすすめ
-                          </span>
-                        </div>
-
-                        <p className="text-xs text-text-muted leading-relaxed line-clamp-3 md:line-clamp-4">
-                          <span className="font-semibold text-primary-800">{salaryText}</span>
-                          <span className="ml-1">{pr}</span>
-                        </p>
-
-                        <div className="pt-2" />
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })
-            )}
-          </div>
-        </div>
+        )}
       </section>
     </main>
   );

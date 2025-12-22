@@ -137,9 +137,7 @@ export default function StudentDashboard() {
       try {
         const { data, error } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .not("salary_1st_year_max", "is", null)
           .order("salary_1st_year_max", { ascending: false })
           .limit(3);
@@ -170,10 +168,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           ranking.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -222,9 +220,7 @@ export default function StudentDashboard() {
 
         const { data: hospRows, error: hospErr } = await supabase
           .from("hospitals_resolved")
-          .select(
-            "id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights"
-          )
+          .select("id,name,prefecture,region,salary_1st_year_min,salary_1st_year_max,pr_highlights")
           .in("id", ids);
 
         if (hospErr) {
@@ -259,10 +255,10 @@ export default function StudentDashboard() {
         const entries = await Promise.all(
           recommended.map(async (h) => {
             try {
-              const res = await fetch(
-                `/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`,
-                { method: "GET", cache: "no-store" }
-              );
+              const res = await fetch(`/api/hospitals/hero?hospitalId=${encodeURIComponent(h.id)}`, {
+                method: "GET",
+                cache: "no-store",
+              });
               if (!res.ok) return [h.id, null] as const;
               const json = (await res.json()) as { url: string | null };
               return [h.id, json.url || null] as const;
@@ -345,6 +341,7 @@ export default function StudentDashboard() {
 
       {/* 検索導線：本音検索 / 通常検索 */}
       <section className="grid md:grid-cols-2 gap-4 pt-2">
+        {/* 本音検索 */}
         <Link
           href="/student/honne"
           className="rounded-2xl border border-primary-200 bg-gradient-to-br from-primary-50 via-sky-50 to-slate-50 hover:bg-primary-50/80 shadow-sm hover:shadow-md transition group"
@@ -373,6 +370,7 @@ export default function StudentDashboard() {
           </div>
         </Link>
 
+        {/* 通常検索 */}
         <Link
           href="/student/browse"
           className="rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 shadow-sm hover:shadow-md transition group"
@@ -401,14 +399,15 @@ export default function StudentDashboard() {
 
       {/* 初年度年収ランキング */}
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="w-6 h-6 text-primary-600" />
-          <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-6 h-6 text-primary-600" />
+            <h2 className="text-xl font-bold text-primary-800">初年度年収ランキング</h2>
+          </div>
         </div>
 
-        {/* ★ スマホ最適化：カード固定幅 + snap */}
-        <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-full">
             {rankingLoading && ranking.length === 0 && (
               <p className="text-sm text-text-muted px-1">読み込み中…</p>
             )}
@@ -437,26 +436,21 @@ export default function StudentDashboard() {
                 <Link
                   key={h.id}
                   href={`/student/hospitals/${h.id}`}
-                  className="snap-start flex-shrink-0 w-[280px] sm:w-[320px] md:min-w-[260px] md:max-w-[320px]"
+                  className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                 >
                   <div className="rounded-2xl bg-white flex flex-col h-full">
                     <div className="px-4 pt-3 flex justify-between items-center">
-                      <span
-                        className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}
-                      >
+                      <span className={`inline-flex items-center justify-center text-[11px] px-6 py-1 rounded-full text-slate-900 font-semibold bg-gradient-to-r ${badgeGradient}`}>
                         {rankLabel}
                       </span>
                     </div>
 
-                    {/* 画像：比率固定でガタつき防止 */}
-                    <div className="w-full mt-2 overflow-hidden">
-                      <div className="relative w-full aspect-[16/9]">
-                        {rankingHeroMap[h.id] ? (
-                          <img src={hero} alt={h.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <Image src={hero} alt={h.name} fill className="object-cover" />
-                        )}
-                      </div>
+                    <div className="w-full h-32 mt-2 overflow-hidden">
+                      {rankingHeroMap[h.id] ? (
+                        <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                      ) : (
+                        <Image src={hero} alt={h.name} width={400} height={128} className="w-full h-full object-cover" />
+                      )}
                     </div>
 
                     <div className="p-4 flex flex-col gap-2 flex-1">
@@ -479,9 +473,8 @@ export default function StudentDashboard() {
       <section className="space-y-4 md:pt-4 md:pb-6 pt-3 pb-4 border-b border-slate-100">
         <h2 className="text-xl font-bold text-primary-800">あなたへのおすすめ</h2>
 
-        {/* ★ スマホ最適化：カード固定幅 + snap */}
-        <div className="overflow-x-auto pb-2 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex gap-4 flex-nowrap snap-x snap-mandatory">
+        <div className="overflow-x-auto pb-2">
+          <div className="flex gap-4 min-w-full">
             {recommended.length === 0 ? (
               <p className="text-sm text-text-muted px-1">
                 おすすめを表示できる病院データがまだありません。
@@ -496,17 +489,15 @@ export default function StudentDashboard() {
                   <Link
                     key={h.id}
                     href={`/student/hospitals/${h.id}`}
-                    className="snap-start flex-shrink-0 w-[280px] sm:w-[320px] md:min-w-[260px] md:max-w-[320px]"
+                    className="min-w-full md:min-w-[260px] md:max-w-[320px] flex-shrink-0"
                   >
                     <div className="rounded-2xl bg-white flex flex-col h-full border border-blue-100 hover:bg-white hover:shadow-[0_10px_25px_rgba(15,23,42,0.1)] transition">
-                      <div className="w-full mt-2 rounded-t-2xl overflow-hidden">
-                        <div className="relative w-full aspect-[16/9]">
-                          {recommendedHeroMap[h.id] ? (
-                            <img src={hero} alt={h.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <Image src={hero} alt={h.name} fill className="object-cover" />
-                          )}
-                        </div>
+                      <div className="w-full h-24 mt-2 rounded-t-2xl overflow-hidden">
+                        {recommendedHeroMap[h.id] ? (
+                          <img src={hero} alt={h.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Image src={hero} alt={h.name} width={400} height={96} className="w-full h-full object-cover" />
+                        )}
                       </div>
 
                       <div className="p-4 flex flex-col gap-2 flex-1">
@@ -527,6 +518,7 @@ export default function StudentDashboard() {
                           <span className="ml-1">{pr}</span>
                         </p>
 
+                        {/* グラフ削除後の余白を整える（下に少しだけスペーサー） */}
                         <div className="pt-2" />
                       </div>
                     </div>

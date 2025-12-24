@@ -54,6 +54,23 @@ type HospitalRow = {
 };
 
 /* =======================
+   検索条件の永続化（localStorage）
+======================= */
+const LS_KEY = "ishimatch:student:browse:filters";
+
+type SavedFilters = {
+  nameQuery: string;
+  facility: Facility;
+  salary: Salary;
+  nights: Nights;
+  showAdvanced: boolean;
+  bedRange: BedRange;
+  housing: Housing;
+  prefList: string[];
+  savedAt: string; // ISO
+};
+
+/* =======================
    ページ
 ======================= */
 export default function StudentHospitalSearchPage() {
@@ -80,6 +97,9 @@ export default function StudentHospitalSearchPage() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(false);
 
+  // ★ 初回だけ localStorage から復元する（復元前にauto検索が走らないようガード）
+  const hydratedRef = useRef(false);
+
   /* ---------- util: Set トグル / 地方一括 ---------- */
   const toggleSet = <T,>(set: Set<T>, v: T) => {
     const next = new Set(set);
@@ -89,10 +109,75 @@ export default function StudentHospitalSearchPage() {
   };
 
   const selectRegion = (g: { name: string; prefs: string[] }) =>
-    setPrefSet(prev => { const next = new Set(prev); g.prefs.forEach(p => next.add(p)); return next; });
+    setPrefSet((prev) => {
+      const next = new Set(prev);
+      g.prefs.forEach((p) => next.add(p));
+      return next;
+    });
 
   const clearRegion = (g: { name: string; prefs: string[] }) =>
-    setPrefSet(prev => { const next = new Set(prev); g.prefs.forEach(p => next.delete(p)); return next; });
+    setPrefSet((prev) => {
+      const next = new Set(prev);
+      g.prefs.forEach((p) => next.delete(p));
+      return next;
+    });
+
+  /* ---------- localStorage: 保存/復元 ---------- */
+  const saveFilters = () => {
+    try {
+      const payload: SavedFilters = {
+        nameQuery,
+        facility,
+        salary,
+        nights,
+        showAdvanced,
+        bedRange,
+        housing,
+        prefList: Array.from(prefSet),
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(LS_KEY, JSON.stringify(payload));
+    } catch {
+      // localStorage が使えない環境でも検索は動かす
+    }
+  };
+
+  const clearSavedFilters = () => {
+    try {
+      localStorage.removeItem(LS_KEY);
+    } catch {}
+  };
+
+  // ★ 初回：保存済み条件があれば復元
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      if (!raw) return;
+
+      const parsed = JSON.parse(raw) as Partial<SavedFilters> | null;
+      if (!parsed) return;
+
+      // 型ガード（最小）
+      if (typeof parsed.nameQuery === "string") setNameQuery(parsed.nameQuery);
+      if (FACILITY.includes(parsed.facility as any)) setFacility(parsed.facility as Facility);
+      if (SALARY.includes(parsed.salary as any)) setSalary(parsed.salary as Salary);
+      if (NIGHTS.includes(parsed.nights as any)) setNights(parsed.nights as Nights);
+
+      if (typeof parsed.showAdvanced === "boolean") setShowAdvanced(parsed.showAdvanced);
+      if (BEDS.includes(parsed.bedRange as any)) setBedRange(parsed.bedRange as BedRange);
+      if (HOUSING.includes(parsed.housing as any)) setHousing(parsed.housing as Housing);
+
+      if (Array.isArray(parsed.prefList)) {
+        setPrefSet(new Set(parsed.prefList.filter((x) => typeof x === "string")));
+      }
+    } catch {
+      // 壊れてたら無視
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ---------- Supabase 検索 ---------- */
   const load = async () => {
@@ -100,10 +185,7 @@ export default function StudentHospitalSearchPage() {
     try {
       let q = supabase
         .from("hospitals_resolved")
-        .select(
-          "*",
-          { count: "exact" }
-        )
+        .select("*", { count: "exact" })
         .limit(200);
 
       // 病院名：部分一致
@@ -167,7 +249,6 @@ export default function StudentHospitalSearchPage() {
 
       // 家賃手当の有無（other_benefits に特定の文言が含まれるか）
       if (housing === "あり") {
-        // 住宅手当 / 住居手当 / 家賃補助 / 住宅補助 のいずれかを含む
         q = q.or(
           [
             "other_benefits.ilike.%住宅手当%",
@@ -191,10 +272,12 @@ export default function StudentHospitalSearchPage() {
     }
   };
 
+  // ★ 復元が終わったあと＆条件変更で再検索（今のUX維持）
   useEffect(() => {
+    if (!hydratedRef.current) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qName, facility, salary, nights, bedRange, housing, prefSet]); // 条件が変わる度に再検索
+  }, [qName, facility, salary, nights, bedRange, housing, prefSet]);
 
   const clearAll = () => {
     setNameQuery("");
@@ -203,8 +286,16 @@ export default function StudentHospitalSearchPage() {
     setNights("問わない");
     setBedRange("問わない");
     setHousing("問わない");
+    setShowAdvanced(false);
     setPrefSet(new Set());
+    clearSavedFilters();
     setTimeout(load, 0);
+  };
+
+  // ★ 「検索」ボタン：最新条件を保存してから検索（要件の核心）
+  const onClickSearch = async () => {
+    saveFilters();
+    await load();
   };
 
   /* ---------- UI ---------- */
@@ -325,7 +416,7 @@ export default function StudentHospitalSearchPage() {
           </div>
 
           <div className="pt-2 flex flex-col gap-2">
-            <button type="button" onClick={load} className="btn-primary text-sm">
+            <button type="button" onClick={onClickSearch} className="btn-primary text-sm">
               検索
             </button>
             <button

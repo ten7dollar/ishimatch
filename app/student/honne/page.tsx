@@ -162,8 +162,51 @@ export default function HonneSearchPage() {
             "id,name,prefecture,region,city,facility_type,bed_count,residents_first_year,salary_1st_year_min,salary_1st_year_max,base_salary_annual,duty_allowance_annual,overtime_allowance_annual,other_allowance_annual,avg_overtime_hours_per_month,avg_duty_shifts_per_month,avg_total_work_hours_per_month,duty_pay_per_shift,good_tags,bad_tags,pr_highlights"
           );
 
-        if (error) throw error;
-        setHospitals((data ?? []) as HonneHospital[]);
+if (error) throw error;
+
+const list = (data ?? []) as HonneHospital[];
+
+/** ★ “情報の埋まり具合” スコア（ベース給を最優先） */
+const completenessScore = (h: HonneHospital) => {
+  let s = 0;
+
+  // 最重要：ベース給（これが入ってる病院を先に見せたい）
+  if (h.base_salary_annual != null) s += 50;
+
+  // 年収内訳が揃うほど価値が高い
+  if (h.duty_allowance_annual != null) s += 10;
+  if (h.overtime_allowance_annual != null) s += 10;
+  if (h.other_allowance_annual != null) s += 5;
+
+  // 働き方の判断に必要
+  if (h.avg_duty_shifts_per_month != null) s += 10;
+  if (h.duty_pay_per_shift != null) s += 10;
+
+  // タグとPRがあると「読み物として」強い
+  if (Array.isArray(h.good_tags) && h.good_tags.length > 0) s += 5;
+  if (Array.isArray(h.bad_tags) && h.bad_tags.length > 0) s += 2;
+  if (h.pr_highlights != null && String(h.pr_highlights).trim()) s += 2;
+
+  // 使える年収値がある（fallbackでもOK）
+  if (h.salary_1st_year_max != null || h.salary_1st_year_min != null) s += 5;
+
+  return s;
+};
+
+// スコア降順 → 同点なら totalIncome降順 → 最後は名前で安定ソート
+const sorted = [...list].sort((a, b) => {
+  const sa = completenessScore(a);
+  const sb = completenessScore(b);
+  if (sb !== sa) return sb - sa;
+
+  const ta = computeTotalIncome(a) ?? -1;
+  const tb = computeTotalIncome(b) ?? -1;
+  if (tb !== ta) return tb - ta;
+
+  return String(a.name ?? "").localeCompare(String(b.name ?? ""), "ja");
+});
+
+setHospitals(sorted);
       } catch (e: any) {
         console.error("[honne] load error", e?.message || e);
         alert(`検索に失敗しました：${e?.message ?? "unknown"}`);

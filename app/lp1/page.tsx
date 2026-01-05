@@ -20,7 +20,7 @@ const PRODUCT_SCREENSHOTS: string[] = [
   "/lp1/product/screen3.png",
 ];
 
-// 共通：コンテンツの幅と余白を揃える
+// --------- helpers ---------
 function Container({
   children,
   className = "",
@@ -28,18 +28,16 @@ function Container({
   children: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <div className={`mx-auto w-full max-w-6xl px-4 ${className}`}>{children}</div>
-  );
+  return <div className={`mx-auto w-full max-w-6xl px-4 ${className}`}>{children}</div>;
 }
 
-// 共通：CTA（SPは小さめ、PCは大きめ）
 function CtaButton({ className = "" }: { className?: string }) {
   return (
     <Link
       href={SIGNUP_URL}
       className={[
         "inline-flex items-center justify-center rounded-xl bg-orange-500 font-semibold text-white shadow-sm hover:bg-orange-600",
+        // SP small / PC larger
         "px-6 py-3 text-sm",
         "md:px-10 md:py-5 md:text-base",
         className,
@@ -50,18 +48,29 @@ function CtaButton({ className = "" }: { className?: string }) {
   );
 }
 
+// タイポ（崩れ防止）
+// - 見出し：SPは大きすぎない、行間 tight、最大幅固定
+// - 本文：SPは14px前後、PCで16〜18px
+const TYPO = {
+  h1: "text-[28px] leading-tight font-extrabold md:text-5xl md:leading-tight",
+  h2: "text-[24px] leading-tight font-extrabold md:text-4xl md:leading-tight",
+  h3: "text-[22px] leading-tight font-extrabold md:text-4xl md:leading-tight",
+  p: "text-[14px] leading-relaxed md:text-base md:leading-relaxed",
+  pLg: "text-[14px] leading-relaxed md:text-lg md:leading-relaxed",
+  bullet: "text-[13px] leading-relaxed md:text-lg md:leading-relaxed",
+};
+
 export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
       {/* =====================
-          ① Hero（高さを抑えて密度UP）
+          ① Hero（画像内テキスト・崩れにくい）
          ===================== */}
       <BgSection
         id="hero"
         pcSrc={IMG.hero.pc}
         spSrc={IMG.hero.sp}
         alt="Hero"
-        // フル画面っぽさを抑える（vhではなく上限pxを持たせる）
         minHeightClassName="min-h-[520px] md:min-h-[560px]"
         overlayStrength="none"
         withSeparator={false}
@@ -70,16 +79,14 @@ export default function Lp1Page() {
         scaleClassName="scale-100"
       >
         <div className="pl-2 md:pl-0">
-          <div className="max-w-2xl">
-            <h1 className="text-2xl font-extrabold leading-tight text-slate-900 md:text-5xl">
-              実質時給で選ぶ。
-              <br />
-              次世代EBM型初期研修
-              <br />
-              マッチング。
+          {/* max-w を固定して折り返しを安定 */}
+          <div className="max-w-[560px]">
+            {/* 不自然な <br/> を減らして自然折り返しに寄せる */}
+            <h1 className={TYPO.h1}>
+              実質時給で選ぶ。次世代EBM型初期研修マッチング。
             </h1>
 
-            <p className="mt-4 text-sm leading-relaxed text-slate-700 md:text-lg">
+            <p className={`mt-4 text-slate-700 ${TYPO.pLg}`}>
               給与・当直・教育体制等の情報を整理し、比較から申し込みまでを一気通貫で。
             </p>
 
@@ -87,8 +94,11 @@ export default function Lp1Page() {
               <CtaButton />
               <Link
                 href="#worry"
-                className="inline-flex items-center justify-center rounded-xl bg-white/70 font-semibold text-slate-900 hover:bg-white
-                           px-6 py-3 text-sm md:px-10 md:py-5 md:text-base"
+                className={[
+                  "inline-flex items-center justify-center rounded-xl bg-white/70 font-semibold text-slate-900 hover:bg-white",
+                  "px-6 py-3 text-sm",
+                  "md:px-10 md:py-5 md:text-base",
+                ].join(" ")}
               >
                 悩みを見る
               </Link>
@@ -97,16 +107,11 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* Heroの直後は “帯” で区切る（余白は薄く） */}
+      {/* ② CTA（余白を締める） */}
       <section className="bg-white">
         <Container className="py-7 md:py-8 text-center">
-          <h2 className="text-xl font-extrabold md:text-2xl">
-            あなたに合う研修病院を見つけよう
-          </h2>
-          <p className="mt-2 text-sm text-slate-600 md:text-base">
-            完全無料・最短3分で完了します
-          </p>
-
+          <h2 className={`text-slate-900 ${TYPO.h2}`}>あなたに合う研修病院を見つけよう</h2>
+          <p className={`mt-2 text-slate-600 ${TYPO.p}`}>完全無料・最短3分で完了します</p>
           <div className="mt-5 flex justify-center">
             <CtaButton />
           </div>
@@ -114,7 +119,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ③ お悩み（高さを抑えて、下部メッセージだけ下に）
+          ③ お悩み（全体崩れ防止：SP用タイポ + 下部固定）
          ===================== */}
       <BgSection
         id="worry"
@@ -128,50 +133,48 @@ export default function Lp1Page() {
         position="center"
         scaleClassName="scale-100"
       >
-        <div className="pl-2 md:pl-0 min-h-[560px] md:min-h-[600px] flex flex-col">
-          {/* 上の文章は現状位置のまま */}
-          <div className="max-w-2xl text-white">
-            <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
-              病院によって
-              <br />
-              待遇・働き方の記載がまちまち。
-              <br />
-              働き方がイメージできない。
-              <br />
+        <div className="relative pl-2 md:pl-0 min-h-[560px] md:min-h-[600px]">
+          <div className="max-w-[560px] text-white">
+            <h3 className={TYPO.h3}>
+              病院によって待遇・働き方の記載がまちまち。働き方がイメージできない。
               こんなお悩みありませんか？
             </h3>
 
-            <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-lg md:leading-relaxed">
+            <ul className={`mt-5 space-y-2 text-white/90 ${TYPO.bullet}`}>
               <li>・額面が高いけど当直回数や残業が多い</li>
               <li>・当直料が安いのに回数が多い</li>
-              <li>・詳細は先輩に聞く/口コミでしか知れない</li>
+              <li>・詳細は先輩に聞く／口コミでしか知れない</li>
             </ul>
           </div>
 
-          {/* 下部メッセージだけ下へ（目立たせる） */}
-          <div className="mt-auto pb-6 md:pb-10 flex justify-center">
-            <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed
-                          text-orange-200 drop-shadow text-base md:text-xl">
-              待遇と経験両方重視したいのに
+          {/* 下部メッセージ：下固定（SPでも安定） */}
+          <div className="absolute inset-x-0 bottom-5 md:bottom-10 flex justify-center">
+            <p
+              className={[
+                "max-w-[92%] md:max-w-3xl text-center font-extrabold text-orange-200 drop-shadow",
+                "text-[15px] leading-relaxed md:text-xl md:leading-relaxed",
+              ].join(" ")}
+            >
+              待遇と経験両方重視したいのに、あまりにも時間と手間がかかる。
               <br />
-              あまりにも時間と手間がかかる。
-              <br />
-              <span className="text-orange-300">
-                妥協して選んだ研修先で後悔することも。
-              </span>
+              <span className="text-orange-300">妥協して選んだ研修先で後悔することも。</span>
             </p>
           </div>
+
+          {/* 下部固定分の余白（被り防止） */}
+          <div className="h-36 md:h-40" />
         </div>
       </BgSection>
 
-      {/* セクション区切り：背景色で自然に（白帯の固定高さを廃止） */}
+      {/* =====================
+          ④ 機能（背景を交互にして区切りを自然に）
+         ===================== */}
       <section className="bg-slate-50">
         <Container className="py-12 md:py-14">
-          {/* ④の見出しは “目立たせたい文章” を最上位に */}
-          <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
+          <h2 className={`text-slate-900 ${TYPO.h2}`}>
             Resimatchなら、検索・比較・応募までワンストップで完結。
           </h2>
-          <p className="mt-3 text-sm text-slate-600 md:text-base">
+          <p className={`mt-3 text-slate-600 ${TYPO.p}`}>
             比較→応募→スカウト受領までを一箇所で。
           </p>
 
@@ -182,20 +185,19 @@ export default function Lp1Page() {
               { t: "ダイレクトスカウト", d: "あなたに合う研修先から声が届く" },
             ].map((x) => (
               <div key={x.t} className="rounded-2xl border bg-white p-5 shadow-sm">
-                <h3 className="font-bold">{x.t}</h3>
-                <p className="mt-2 text-sm text-slate-600 md:text-base">{x.d}</p>
+                <h3 className="font-bold text-slate-900">{x.t}</h3>
+                <p className={`mt-2 text-slate-600 ${TYPO.p}`}>{x.d}</p>
               </div>
             ))}
           </div>
 
-          {/* ④の図解画像：containで全体表示、でも高さは抑える */}
           <div className="mt-8">
             <BgSection
               id="solve"
               pcSrc={IMG.solve.pc}
               spSrc={IMG.solve.sp}
               alt="Solve"
-              minHeightClassName="min-h-[340px] md:min-h-[420px]"
+              minHeightClassName="min-h-[320px] md:min-h-[420px]"
               overlayStrength="none"
               withSeparator={false}
               contentClassName="py-6 md:py-8"
@@ -211,17 +213,14 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑤ 実際の画面（余白を締める）
+          ⑤ 実際の画面
          ===================== */}
       <section id="screenshots" className="bg-white">
         <Container className="py-12 md:py-14">
-          <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
-            実際の画面
-          </h2>
-          <p className="mt-3 text-sm text-slate-600 md:text-base">
+          <h2 className={`text-slate-900 ${TYPO.h2}`}>実際の画面</h2>
+          <p className={`mt-3 text-slate-600 ${TYPO.p}`}>
             年収・当直・教育体制など、比較に必要な情報を同じ見方で整理。
           </p>
-
           <div className="mt-6">
             <ScreenCarousel images={PRODUCT_SCREENSHOTS} />
           </div>
@@ -229,14 +228,12 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑥ Before→After（図解画像の高さを抑える）
+          ⑥ Before→After
          ===================== */}
       <section className="bg-slate-50">
         <Container className="py-12 md:py-14">
-          <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
-            Before → After
-          </h2>
-          <p className="mt-3 text-sm text-slate-600 md:text-base">
+          <h2 className={`text-slate-900 ${TYPO.h2}`}>Before → After</h2>
+          <p className={`mt-3 text-slate-600 ${TYPO.p}`}>
             「探し方が分からない」「比較が大変」を、最短で解決する。
           </p>
 
@@ -246,7 +243,7 @@ export default function Lp1Page() {
               pcSrc={IMG.beforeAfter.pc}
               spSrc={IMG.beforeAfter.sp}
               alt="Before After"
-              minHeightClassName="min-h-[340px] md:min-h-[420px]"
+              minHeightClassName="min-h-[320px] md:min-h-[420px]"
               overlayStrength="none"
               withSeparator={false}
               contentClassName="py-6 md:py-8"
@@ -262,7 +259,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑦ クロージング（SPはCTAなし、PCはCTAあり）
+          ⑦ クロージング（SP CTAなし / PC CTAあり）
          ===================== */}
       <BgSection
         id="closing"
@@ -278,14 +275,10 @@ export default function Lp1Page() {
       >
         <div className="pl-2 md:pl-0">
           <div className="flex min-h-[520px] items-start pt-8 md:min-h-[560px] md:items-center md:pt-0">
-            <div className="max-w-3xl text-white">
-              <p className="text-sm font-semibold text-white/90 md:text-base">
-                学生最後の一年、理想の研修先のために行動したい。
-              </p>
-              <h2 className="mt-2 text-2xl font-extrabold leading-tight md:text-4xl">
-                Resimatchで頑張らずに
-                <br />
-                キャリア・遊び・勉強を掴り取る。
+            <div className="max-w-[680px] text-white">
+              <p className={`text-white/90 ${TYPO.p}`}>学生最後の一年、理想の研修先のために行動したい。</p>
+              <h2 className={`mt-2 ${TYPO.h2}`}>
+                Resimatchで頑張らずにキャリア・遊び・勉強を掴り取る。
               </h2>
 
               <div className="mt-6 hidden md:flex">
@@ -297,7 +290,7 @@ export default function Lp1Page() {
       </BgSection>
 
       {/* =====================
-          ⑧ QA（余白を締める）
+          ⑧ QA
          ===================== */}
       <section id="qa" className="bg-white">
         <Container className="py-12 md:py-14">
@@ -326,8 +319,8 @@ export default function Lp1Page() {
             ].map((x, i) => (
               <div key={x.q} className="rounded-2xl border bg-white p-5 shadow-sm">
                 <p className="text-xs font-bold text-slate-500">Q{i + 1}.</p>
-                <h3 className="mt-2 text-sm font-bold">{x.q}</h3>
-                <p className="mt-3 text-sm text-slate-600">{x.a}</p>
+                <h3 className="mt-2 text-sm font-bold text-slate-900">{x.q}</h3>
+                <p className={`mt-3 text-slate-600 ${TYPO.p}`}>{x.a}</p>
               </div>
             ))}
           </div>
@@ -335,7 +328,7 @@ export default function Lp1Page() {
       </section>
 
       {/* =====================
-          ⑨ FinalCTA（高さを抑える + ボタン位置）
+          ⑨ FinalCTA（ボタンのみ）
          ===================== */}
       <BgSection
         id="final"

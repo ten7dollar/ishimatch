@@ -14,20 +14,31 @@ const IMG = {
   finalCta: { pc: "/lp1/finalcta_pc.jpg", sp: "/lp1/finalcta_sp.jpg" },
 };
 
-// ⑤：プロダクトスクショ（3枚）
 const PRODUCT_SCREENSHOTS: string[] = [
   "/lp1/product/screen1.png",
   "/lp1/product/screen2.png",
   "/lp1/product/screen3.png",
 ];
 
-// CTAボタン（SPは小さめ、PCは大きめ）
+// 共通：コンテンツの幅と余白を揃える
+function Container({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`mx-auto w-full max-w-6xl px-4 ${className}`}>{children}</div>
+  );
+}
+
+// 共通：CTA（SPは小さめ、PCは大きめ）
 function CtaButton({ className = "" }: { className?: string }) {
   return (
     <Link
       href={SIGNUP_URL}
       className={[
-        // size: SP small, PC large
         "inline-flex items-center justify-center rounded-xl bg-orange-500 font-semibold text-white shadow-sm hover:bg-orange-600",
         "px-6 py-3 text-sm",
         "md:px-10 md:py-5 md:text-base",
@@ -43,18 +54,17 @@ export default function Lp1Page() {
   return (
     <main className="bg-white text-slate-900">
       {/* =====================
-          ① Hero：画像内テキスト（背景なし）
-          - PCでサブ文を大きく（見やすさ）
-          - CTAもSPは小さく、PCは大きく
+          ① Hero（高さを抑えて密度UP）
          ===================== */}
       <BgSection
         id="hero"
         pcSrc={IMG.hero.pc}
         spSrc={IMG.hero.sp}
         alt="Hero"
-        minHeightClassName="min-h-[78vh]"
+        // フル画面っぽさを抑える（vhではなく上限pxを持たせる）
+        minHeightClassName="min-h-[520px] md:min-h-[560px]"
         overlayStrength="none"
-        withSeparator={true}
+        withSeparator={false}
         fit="cover"
         position="center"
         scaleClassName="scale-100"
@@ -69,8 +79,7 @@ export default function Lp1Page() {
               マッチング。
             </h1>
 
-            {/* サブメッセージ：PCだけサイズUP */}
-            <p className="mt-4 text-sm leading-relaxed text-slate-700 md:text-lg md:leading-relaxed">
+            <p className="mt-4 text-sm leading-relaxed text-slate-700 md:text-lg">
               給与・当直・教育体制等の情報を整理し、比較から申し込みまでを一気通貫で。
             </p>
 
@@ -88,11 +97,9 @@ export default function Lp1Page() {
         </div>
       </BgSection>
 
-      {/* =====================
-          ② CTA（白帯：縦余白やや詰め）
-         ===================== */}
+      {/* Heroの直後は “帯” で区切る（余白は薄く） */}
       <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 py-8 text-center md:py-9">
+        <Container className="py-7 md:py-8 text-center">
           <h2 className="text-xl font-extrabold md:text-2xl">
             あなたに合う研修病院を見つけよう
           </h2>
@@ -103,71 +110,67 @@ export default function Lp1Page() {
           <div className="mt-5 flex justify-center">
             <CtaButton />
           </div>
-        </div>
-        <div className="h-10 bg-white md:h-14" />
+        </Container>
       </section>
 
-{/* ③ お悩み：画像内テキスト（背景なし） */}
-<BgSection
-  id="worry"
-  pcSrc={IMG.worry.pc}
-  spSrc={IMG.worry.sp}
-  alt="Worry"
-  minHeightClassName="min-h-[72vh]"
-  overlayStrength="soft"
-  withSeparator={true}
-  fit="cover"
-  position="center"
-  scaleClassName="scale-100"
->
-  {/* ここが重要：セクションと同じ高さを持つコンテナにする */}
-  <div className="pl-2 md:pl-0 min-h-[72vh] flex flex-col">
-    {/* 上の文章：今の位置を基本維持 */}
-    <div className="max-w-2xl text-white">
-      <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
-        病院によって
-        <br />
-        待遇・働き方の記載がまちまち。
-        <br />
-        働き方がイメージできない。
-        <br />
-        こんなお悩みありませんか？
-      </h3>
-
-      <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-lg md:leading-relaxed">
-        <li>・額面が高いけど当直回数や残業が多い</li>
-        <li>・当直料が安いのに回数が多い</li>
-        <li>・詳細は先輩に聞く/口コミでしか知れない</li>
-      </ul>
-    </div>
-
-    {/* 下部に押し下げる（これで確実に下に行く） */}
-    <div className="mt-auto pb-6 md:pb-12 flex justify-center">
-      <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed text-orange-200 drop-shadow
-                    text-base md:text-xl">
-        待遇と経験両方重視したいのに
-        <br />
-        時間と手間がかかりぎる。
-        <br />
-        <span className="text-orange-300">
-          妥協して選んだ研修先で後悔することも。
-        </span>
-      </p>
-    </div>
-  </div>
-</BgSection>
-
       {/* =====================
-          ④ 解決：見出しを大きく、補足を小さくしない（逆転）
+          ③ お悩み（高さを抑えて、下部メッセージだけ下に）
          ===================== */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
-          {/* 目立たせたい文章をメイン見出しに */}
+      <BgSection
+        id="worry"
+        pcSrc={IMG.worry.pc}
+        spSrc={IMG.worry.sp}
+        alt="Worry"
+        minHeightClassName="min-h-[560px] md:min-h-[600px]"
+        overlayStrength="soft"
+        withSeparator={false}
+        fit="cover"
+        position="center"
+        scaleClassName="scale-100"
+      >
+        <div className="pl-2 md:pl-0 min-h-[560px] md:min-h-[600px] flex flex-col">
+          {/* 上の文章は現状位置のまま */}
+          <div className="max-w-2xl text-white">
+            <h3 className="text-2xl font-extrabold leading-snug md:text-4xl">
+              病院によって
+              <br />
+              待遇・働き方の記載がまちまち。
+              <br />
+              働き方がイメージできない。
+              <br />
+              こんなお悩みありませんか？
+            </h3>
+
+            <ul className="mt-6 space-y-3 text-sm text-white/90 md:text-lg md:leading-relaxed">
+              <li>・額面が高いけど当直回数や残業が多い</li>
+              <li>・当直料が安いのに回数が多い</li>
+              <li>・詳細は先輩に聞く/口コミでしか知れない</li>
+            </ul>
+          </div>
+
+          {/* 下部メッセージだけ下へ（目立たせる） */}
+          <div className="mt-auto pb-6 md:pb-10 flex justify-center">
+            <p className="max-w-[92%] md:max-w-3xl text-center font-extrabold leading-relaxed
+                          text-orange-200 drop-shadow text-base md:text-xl">
+              待遇と経験両方重視したいのに
+              <br />
+              あまりにも時間と手間がかかる。
+              <br />
+              <span className="text-orange-300">
+                妥協して選んだ研修先で後悔することも。
+              </span>
+            </p>
+          </div>
+        </div>
+      </BgSection>
+
+      {/* セクション区切り：背景色で自然に（白帯の固定高さを廃止） */}
+      <section className="bg-slate-50">
+        <Container className="py-12 md:py-14">
+          {/* ④の見出しは “目立たせたい文章” を最上位に */}
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
             Resimatchなら、検索・比較・応募までワンストップで完結。
           </h2>
-
-          {/* サブは控えめ */}
           <p className="mt-3 text-sm text-slate-600 md:text-base">
             比較→応募→スカウト受領までを一箇所で。
           </p>
@@ -178,37 +181,40 @@ export default function Lp1Page() {
               { t: "AIレジュメ生成", d: "応募準備を最短化" },
               { t: "ダイレクトスカウト", d: "あなたに合う研修先から声が届く" },
             ].map((x) => (
-              <div key={x.t} className="rounded-2xl border bg-white p-5">
+              <div key={x.t} className="rounded-2xl border bg-white p-5 shadow-sm">
                 <h3 className="font-bold">{x.t}</h3>
                 <p className="mt-2 text-sm text-slate-600 md:text-base">{x.d}</p>
               </div>
             ))}
           </div>
-        </div>
 
-        <BgSection
-          id="solve"
-          pcSrc={IMG.solve.pc}
-          spSrc={IMG.solve.sp}
-          alt="Solve"
-          minHeightClassName="min-h-[56vh]"
-          overlayStrength="none"
-          withSeparator={true}
-          contentClassName="py-10 md:py-14"
-          fit="contain"
-          position="center"
-          bgClassName="bg-white"
-          scaleClassName="scale-100"
-        >
-          <div />
-        </BgSection>
+          {/* ④の図解画像：containで全体表示、でも高さは抑える */}
+          <div className="mt-8">
+            <BgSection
+              id="solve"
+              pcSrc={IMG.solve.pc}
+              spSrc={IMG.solve.sp}
+              alt="Solve"
+              minHeightClassName="min-h-[340px] md:min-h-[420px]"
+              overlayStrength="none"
+              withSeparator={false}
+              contentClassName="py-6 md:py-8"
+              fit="contain"
+              position="center"
+              bgClassName="bg-white"
+              scaleClassName="scale-100"
+            >
+              <div />
+            </BgSection>
+          </div>
+        </Container>
       </section>
 
       {/* =====================
-          ⑤ 実際の画面：タイトル大きく、説明は控えめ
+          ⑤ 実際の画面（余白を締める）
          ===================== */}
       <section id="screenshots" className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14 pb-12 md:pb-16">
+        <Container className="py-12 md:py-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
             実際の画面
           </h2>
@@ -219,59 +225,59 @@ export default function Lp1Page() {
           <div className="mt-6">
             <ScreenCarousel images={PRODUCT_SCREENSHOTS} />
           </div>
-        </div>
-        <div className="h-10 bg-white md:h-14" />
+        </Container>
       </section>
 
       {/* =====================
-          ⑥ Before→After：タイトル大きく、説明は控えめ
+          ⑥ Before→After（図解画像の高さを抑える）
          ===================== */}
-      <section className="bg-white">
-        <div className="mx-auto max-w-6xl px-4 pt-14 pb-10 md:pb-14">
+      <section className="bg-slate-50">
+        <Container className="py-12 md:py-14">
           <h2 className="text-2xl font-extrabold text-slate-900 md:text-4xl">
             Before → After
           </h2>
           <p className="mt-3 text-sm text-slate-600 md:text-base">
             「探し方が分からない」「比較が大変」を、最短で解決する。
           </p>
-        </div>
 
-        <BgSection
-          id="beforeafter"
-          pcSrc={IMG.beforeAfter.pc}
-          spSrc={IMG.beforeAfter.sp}
-          alt="Before After"
-          minHeightClassName="min-h-[56vh]"
-          overlayStrength="none"
-          withSeparator={true}
-          contentClassName="py-10 md:py-14"
-          fit="contain"
-          position="center"
-          bgClassName="bg-white"
-          scaleClassName="scale-100"
-        >
-          <div />
-        </BgSection>
+          <div className="mt-8">
+            <BgSection
+              id="beforeafter"
+              pcSrc={IMG.beforeAfter.pc}
+              spSrc={IMG.beforeAfter.sp}
+              alt="Before After"
+              minHeightClassName="min-h-[340px] md:min-h-[420px]"
+              overlayStrength="none"
+              withSeparator={false}
+              contentClassName="py-6 md:py-8"
+              fit="contain"
+              position="center"
+              bgClassName="bg-white"
+              scaleClassName="scale-100"
+            >
+              <div />
+            </BgSection>
+          </div>
+        </Container>
       </section>
 
       {/* =====================
-          ⑦ クロージング：SPはテキスト上寄せ＆CTA削除 / PCはCTA維持
+          ⑦ クロージング（SPはCTAなし、PCはCTAあり）
          ===================== */}
       <BgSection
         id="closing"
         pcSrc={IMG.closing.pc}
         spSrc={IMG.closing.sp}
         alt="Closing"
-        minHeightClassName="min-h-[70vh]"
+        minHeightClassName="min-h-[520px] md:min-h-[560px]"
         overlayStrength="soft"
-        withSeparator={true}
+        withSeparator={false}
         fit="cover"
         position="center"
         scaleClassName="scale-100"
       >
         <div className="pl-2 md:pl-0">
-          {/* SP：上寄せ（pt）、PC：中央 */}
-          <div className="flex min-h-[70vh] items-start pt-8 md:min-h-0 md:items-center md:pt-0">
+          <div className="flex min-h-[520px] items-start pt-8 md:min-h-[560px] md:items-center md:pt-0">
             <div className="max-w-3xl text-white">
               <p className="text-sm font-semibold text-white/90 md:text-base">
                 学生最後の一年、理想の研修先のために行動したい。
@@ -282,7 +288,6 @@ export default function Lp1Page() {
                 キャリア・遊び・勉強を掴り取る。
               </h2>
 
-              {/* PCのみCTA（SPは削除） */}
               <div className="mt-6 hidden md:flex">
                 <CtaButton />
               </div>
@@ -292,10 +297,10 @@ export default function Lp1Page() {
       </BgSection>
 
       {/* =====================
-          ⑧ QA：画像なし
+          ⑧ QA（余白を締める）
          ===================== */}
-      <section id="qa" className="bg-slate-50">
-        <div className="mx-auto max-w-6xl px-4 py-16">
+      <section id="qa" className="bg-white">
+        <Container className="py-12 md:py-14">
           <div className="inline-flex rounded-2xl bg-blue-700 px-4 py-3 text-sm font-semibold text-white">
             よくある質問
           </div>
@@ -326,29 +331,26 @@ export default function Lp1Page() {
               </div>
             ))}
           </div>
-        </div>
+        </Container>
       </section>
 
       {/* =====================
-          ⑨ FinalCTA：ボタンだけ
-          - SPでボタンをさらに下へ（被り回避）
-          - md以上は現状維持
+          ⑨ FinalCTA（高さを抑える + ボタン位置）
          ===================== */}
       <BgSection
         id="final"
         pcSrc={IMG.finalCta.pc}
         spSrc={IMG.finalCta.sp}
         alt="Final CTA"
-        minHeightClassName="min-h-[60vh]"
+        minHeightClassName="min-h-[440px] md:min-h-[520px]"
         overlayStrength="none"
         withSeparator={false}
         fit="cover"
         position="center"
         scaleClassName="scale-100"
       >
-        <div className="flex min-h-[60vh] items-center justify-center">
-          {/* translate-yはSPだけ強め、PCは今まで通り */}
-          <div className="translate-y-24 md:translate-y-14">
+        <div className="flex min-h-[440px] items-center justify-center md:min-h-[520px]">
+          <div className="translate-y-20 md:translate-y-14">
             <CtaButton />
           </div>
         </div>
